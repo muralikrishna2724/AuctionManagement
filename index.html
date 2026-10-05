@@ -200,7 +200,11 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .cr-special{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
 .cr-special .btn{min-width:0}
 .cr-special .btn.wild span{overflow:hidden;text-overflow:ellipsis}
-.surp{display:flex;align-items:center;gap:10px;min-width:0;border:1px dashed var(--line-2);border-radius:10px;padding:7px 12px}
+.surp{display:flex;align-items:center;gap:10px;min-width:0;border:1px dashed var(--line-2);border-radius:10px;padding:7px 12px;background:none;color:inherit;text-align:left;cursor:pointer;font:inherit}
+.surp:hover{border-color:var(--gold)}
+.surp-t .nx{color:var(--ink);font-weight:700}
+.surp-t .chg{color:var(--gold);font:800 11px/1 var(--f-cond);letter-spacing:.1em}
+.sp-on td{background:rgba(255,196,0,.1)}
 .surp-ic{font-size:22px;line-height:1}
 .surp-t{display:flex;flex-direction:column;gap:2px;min-width:0}
 .surp-t b{font:800 15px/1.1 var(--f-cond);letter-spacing:.06em;text-transform:uppercase}
@@ -1062,6 +1066,7 @@ function defaultRules() {
     reserve: { mode: 'warn', perSlot: cr2l(0.2) },
     lowPurse: cr2l(10),
     autoAdvance: true,
+    order: 'random',
     unsoldCut: 0,
     currency: { sym: '₹', unit: 'Cr' },
     mystery: { hide: 'all', reveal: 'before', max: 5, auto: true, every: 6 },
@@ -1080,7 +1085,7 @@ function blankState() {
     event: { name: 'College IPL Auction 2026', host: '', date: '' },
     rules: defaultRules(),
     teams: [], players: [], sets: [], queue: [], live: emptyLive(), lots: [], wildUsed: [],
-    surprise: { since: 0, gap: 6, n: { mystery: 0, wild: 0 } },
+    surprise: { since: 0, gap: 6, n: { mystery: 0, wild: 0 }, next: null },
     log: [], fx: null, fxSeq: 0,
     judging: { judges: [{ id: 'j1', name: 'Judge 1' }, { id: 'j2', name: 'Judge 2' }, { id: 'j3', name: 'Judge 3' }], scores: {} },
     awards: {},
@@ -1333,6 +1338,7 @@ function buildSample() {
   const tidOf = code => S.teams.find(t => t.short === code).id;
   [['P003', 'LL'], ['P012', 'CC'], ['P018', 'HH'], ['P027', 'FF'], ['P033', 'NO']].forEach(([id, code]) => { const p = S.players.find(x => x.id === id); if (p) p.prevTeam = tidOf(code); });
   autoBuildSets();
+  RNG = rand;
   rebuildQueue();
   simulateSample(rand);
   return S;
@@ -1682,13 +1688,26 @@ function pickSurprise() {
   }
   return null;
 }
+/* The next surprise is picked ahead of time so the handler can see it and change it.
+   manual: the handler chose it, so it pops in even when the wild card timing rule says wait. */
+function surpriseNext() {
+  const n = S.surprise.next;
+  const p = n && P(n.pid);
+  if (!p || p.status !== 'available' || p.surprised || S.live.pid === p.id) return null;
+  if (!(n.kind === 'wild' ? p.wild : p.mystery && !p.wild) || !surpriseLeft(n.kind)) return null;
+  return { kind: n.kind, p, manual: !!n.manual };
+}
+function rollNextSurprise(avoid) {
+  let pick = pickSurprise();
+  for (let i = 0; i < 6 && pick && avoid && pick.p.id === avoid; i++) pick = pickSurprise();
+  S.surprise.next = pick ? { kind: pick.kind, pid: pick.p.id } : null;
+}
 /* "Next surprise" for the auctioneer's screen only */
 function surpriseStatus() {
   const R = S.rules.surprise;
-  if (!R || !R.on) return { off: true };
   const left = surpriseLeft('mystery') + surpriseLeft('wild');
-  if (!left) return { none: true };
-  return { inN: Math.max(0, S.surprise.gap - S.surprise.since), mys: surpriseLeft('mystery'), wild: surpriseLeft('wild') };
+  if (!left) return { none: true, off: !R || !R.on };
+  return { off: !R || !R.on, inN: Math.max(0, S.surprise.gap - S.surprise.since), mys: surpriseLeft('mystery'), wild: surpriseLeft('wild'), next: surpriseNext() };
 }
 
 /* ---------- Mystery clues written from the player's own numbers ---------- */
@@ -1826,14 +1845,32 @@ function autoBuildSets(only) {
   const rank = s => { const i = AUTO_SETS.findIndex(a => a[0] === s.kind); return i >= 0 ? i : s.kind === 'unsold' ? 999 : 500; };
   S.sets = live.sort((a, b) => rank(a) - rank(b));
 }
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(RNG() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+/* rules.order: 'random' pops players from the whole pool at random, 'sets' goes set by set
+   in random order inside each set, 'queue' goes set by set in player-number order. */
 function rebuildQueue() {
+  const mode = S.rules.order || 'random';
+  const arrange = list => { list.sort((a, b) => orderKey(a) - orderKey(b)); return mode === 'queue' ? list : shuffle(list); };
   const q = [];
-  for (const s of S.sets) {
-    S.players.filter(p => p.setId === s.id && queueable(p)).sort((a, b) => orderKey(a) - orderKey(b)).forEach(p => q.push(p.id));
+  if (mode === 'random') {
+    const all = S.players.filter(queueable);
+    arrange(all.filter(p => !p.round2)).concat(arrange(all.filter(p => p.round2))).forEach(p => q.push(p.id));
+    S.queue = q;
+    return;
   }
-  S.players.filter(p => queueable(p) && !q.includes(p.id) && !S.sets.some(s => s.id === p.setId))
-    .sort((a, b) => orderKey(a) - orderKey(b)).forEach(p => q.push(p.id));
+  for (const s of S.sets) arrange(S.players.filter(p => p.setId === s.id && queueable(p))).forEach(p => q.push(p.id));
+  arrange(S.players.filter(p => queueable(p) && !q.includes(p.id) && !S.sets.some(s => s.id === p.setId))).forEach(p => q.push(p.id));
   S.queue = q;
+}
+/* Shuffle the players already in the queue, keeping sets together in 'sets' mode and the unsold round last. */
+function shuffleQueue() {
+  const groups = new Map();
+  const key = p => (p.round2 ? 'r2' : S.rules.order === 'sets' ? 's:' + (p.setId || '') : 'all');
+  S.queue.map(id => P(id)).filter(Boolean).forEach(p => { const k = key(p); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p.id); });
+  S.queue = [...groups.values()].flatMap(shuffle);
 }
 
 /* No timer: the auctioneer closes the bidding by hand. Each click calls
@@ -1868,7 +1905,9 @@ function loadLotNow(pid, how) { commit(() => loadLot(pid, how)); }
 function advance(afterResult) {
   S.queue = S.queue.filter(id => queueable(S.players.find(p => p.id === id)));
   if (afterResult && surpriseDue()) {
-    const pick = pickSurprise();
+    let pick = surpriseNext();
+    if (pick && !pick.manual && pick.kind === 'wild' && !wildTimingOK()) pick = null;
+    if (!pick) pick = pickSurprise();
     if (pick) return loadSurprise(pick.p, pick.kind);
   }
   const next = S.queue[0];
@@ -1890,6 +1929,8 @@ function loadSurprise(p, kind) {
   S.surprise.since = 0;
   S.surprise.gap = Math.round(R.min + RNG() * Math.max(0, R.max - R.min));
   S.surprise.n[kind] = (S.surprise.n[kind] || 0) + 1;
+  S.surprise.next = null;
+  rollNextSurprise();
   if (kind === 'wild') {
     lv.revealed = true; lv.phase = 'bidding'; lv.startedAt = NOW();
     log({ type: 'wild', pid: p.id, note: 'entered the auction by surprise' });
@@ -2609,12 +2650,21 @@ function mysteryBoxHTML(p) {
   </div>`;
 }
 function specialButtonsHTML() {
-  const st = surpriseStatus();
+  if (CONTROLLER && !surpriseNext()) {
+    const was = JSON.stringify(S.surprise.next || null);
+    rollNextSurprise();
+    if (JSON.stringify(S.surprise.next || null) !== was) quietSave();
+  }
+  const st = surpriseStatus(), swap = surpriseMode() === 'swap';
   const sugg = alertPresets().some(x => x.sugg);
-  const head = st.off ? 'Surprises are off' : st.none ? 'No surprises left' : st.inN <= 1 ? 'Surprise after this player' : 'Next surprise in ' + plural(st.inN, 'player');
-  const sub = st.off ? 'Turn them on in Setup → Surprises' : st.none ? 'Every mystery and wild card player has been used' : `🕵️ ${st.mys} mystery · 🃏 ${st.wild} wild card left`;
+  const nx = st.next ? `${st.next.kind === 'wild' ? '🃏' : '🕵️'} ${esc(st.next.p.name)}` : '';
+  let head, sub;
+  if (swap) { const cp = lotPlayer(); head = (cp.wild ? '🃏 Wild card' : '🕵️ Mystery player') + ' on the block'; sub = 'Not the one you wanted? Change it before the first bid'; }
+  else if (st.none) { head = 'No surprises left'; sub = 'Every mystery and wild card player has been used'; }
+  else if (st.off) { head = 'Automatic surprises are off'; sub = `<span class="nx">Next: ${nx}</span> · you can still pop one in`; }
+  else { head = st.inN <= 1 ? 'Surprise after this player' : 'Next surprise in ' + plural(st.inN, 'player'); sub = `<span class="nx">Next: ${nx}</span> · 🕵️ ${st.mys} · 🃏 ${st.wild} left`; }
   return `<div class="cr-special">
-    <div class="surp${!st.off && !st.none && st.inN <= 1 ? ' soon' : ''}" title="Only you can see this. Mystery players and wild cards pop in on their own, at random."><span class="surp-ic">🎲</span><span class="surp-t"><b>${head}</b><small>${sub}</small></span></div>
+    <button class="surp${swap || (!st.off && !st.none && st.inN <= 1) ? ' soon' : ''}" data-act="surprise-pick" title="Only you can see this. Click to change the mystery or wild card player, or pop one in now."><span class="surp-ic">🎲</span><span class="surp-t"><b>${head}</b><small>${sub}</small>${st.none && !swap ? '' : '<span class="chg">CHANGE ▸</span>'}</span></button>
     <button class="btn ghost" data-act="alerts" title="Breaking news alert (A)">📢${sugg ? '<span class="warn">●</span>' : ''} <kbd>A</kbd></button>
   </div>`;
 }
@@ -2726,7 +2776,7 @@ function renderQueue() {
       <span class="qa"><button class="icon-btn" data-act="q-now" data-pid="${esc(p.id)}" title="Auction now">▶</button><button class="icon-btn" data-act="q-up" data-pid="${esc(p.id)}" title="Move up"${i === 0 ? ' disabled' : ''}>▲</button><button class="icon-btn" data-act="q-down" data-pid="${esc(p.id)}" title="Move down"${i === q.length - 1 ? ' disabled' : ''}>▼</button><button class="icon-btn" data-act="q-end" data-pid="${esc(p.id)}" title="Skip: move to the end">⏭</button><button class="icon-btn" data-act="q-remove" data-pid="${esc(p.id)}" title="Remove from the queue">✕</button></span></li>`;
   });
   if (q.length > 80) h += `<li class="empty-note">+ ${q.length - 80} more in the queue</li>`;
-  patch($('#cr-queue'), `<header class="ph-head"><h3>NEXT PLAYERS <span>${q.length} in queue</span></h3><div class="tools"><button class="mini" data-act="q-add">+ Add</button><button class="mini" data-act="skip" title="Move the current player to the end of the queue">Skip</button><button class="mini" data-act="q-rebuild" title="Rebuild the order from the auction sets">From sets</button></div></header>
+  patch($('#cr-queue'), `<header class="ph-head"><h3>NEXT PLAYERS <span>${q.length} in queue${S.rules.order !== 'queue' ? ' · 🔀 random' : ''}</span></h3><div class="tools"><button class="mini" data-act="q-add">+ Add</button><button class="mini" data-act="q-shuffle" title="Shuffle the order of the players in the queue" aria-label="Shuffle the queue">🔀</button><button class="mini" data-act="skip" title="Move the current player to the end of the queue">Skip</button><button class="mini" data-act="q-rebuild" title="Rebuild the order from the auction sets">From sets</button></div></header>
     <ol class="qlist">${h || '<li class="empty-note">The queue is empty.</li>'}</ol>`);
 }
 
@@ -3038,6 +3088,107 @@ function drawAddQueue() {
   const list = S.players.filter(p => (p.status === 'available' || p.status === 'unsold') && !S.queue.includes(p.id) && S.live.pid !== p.id).filter(psearch(q));
   patch(el, list.length ? `<table class="tbl"><tbody>${list.slice(0, 150).map(p => `<tr><td class="pid">#${esc(pnum(p))}</td><td class="pname">${esc(p.name)} ${p.mystery ? '🕵️' : ''}${p.wild ? '🃏' : ''}</td><td>${roleText(p)}</td><td>${statusPill(p)}</td><td class="r money">${money(p.base)}</td><td class="r"><div class="acts"><button class="mini" data-act="qa-next" data-pid="${esc(p.id)}">Up next</button><button class="mini" data-act="qa-end" data-pid="${esc(p.id)}">To the end</button></div></td></tr>`).join('')}</tbody></table>` : '<p class="empty-note">Every available player is already in the queue.</p>');
 }
+/* ---------- Surprise picker: the handler chooses or changes the mystery / wild card player ---------- */
+/* 'swap' while a surprise player is on the block with no bids yet, otherwise 'next' */
+function surpriseMode() {
+  const lv = S.live;
+  return lv.how === 'surprise' && lv.pid && (lv.phase === 'ready' || lv.phase === 'bidding') && !lv.bids.length ? 'swap' : 'next';
+}
+function openSurprisePick() {
+  openModal({
+    id: 'surp', tone: 'purple', title: '🎲 SURPRISE PLAYER', wide: true, live: drawSurprisePick,
+    body: `<p id="spIntro"></p><input type="search" id="spQ" placeholder="Search the pool, or any available player to make them a surprise" data-in="sp" aria-label="Search players"><div id="spList" style="max-height:48vh;overflow:auto"></div>`,
+    foot: `<button class="btn ghost" data-act="modal-close">CLOSE <kbd>Esc</kbd></button><button class="btn ghost" data-act="sp-random">🎲 RANDOM PICK</button><button class="btn gold" data-act="sp-pop" id="spPop">POP IN NOW</button>`,
+  });
+  drawSurprisePick();
+}
+/* Slots left for a kind; while swapping, the player on the block gives its slot back. */
+function surpriseSlots(kind) {
+  const cp = surpriseMode() === 'swap' ? lotPlayer() : null;
+  const back = cp && (cp.wild ? 'wild' : 'mystery') === kind ? 1 : 0;
+  return surpriseMax(kind) - (S.surprise.n[kind] || 0) + back;
+}
+function drawSurprisePick() {
+  const el = $('#spList'); if (!el) return;
+  const swap = surpriseMode() === 'swap', cur = swap ? lotPlayer() : null, nx = surpriseNext();
+  const q = ($('#spQ') || {}).value || '';
+  const intro = $('#spIntro');
+  if (intro) intro.innerHTML = swap
+    ? `On the block now: <b>${cur.wild ? '🃏' : '🕵️'} ${esc(cur.name)}</b>. Pick another player to swap in. ${esc(cur.name)} goes back to the surprise pool.`
+    : `Pops in next: <b>${nx ? (nx.kind === 'wild' ? '🃏 ' : '🕵️ ') + esc(nx.p.name) + (nx.manual ? ' (your pick)' : ' (random pick)') : 'nobody, the pool is empty'}</b>. Pick a player to change it, or press <b>POP IN NOW</b>.`;
+  const pop = $('#spPop'); if (pop) pop.hidden = swap;
+  const pool = S.players.filter(p => p.status === 'available' && (p.mystery || p.wild) && !p.surprised && S.live.pid !== p.id);
+  const others = q.trim() ? S.players.filter(p => p.status === 'available' && !pool.includes(p) && S.live.pid !== p.id) : [];
+  const list = pool.filter(psearch(q)).sort((a, b) => (b.wild - a.wild) || b.rating - a.rating).concat(others.filter(psearch(q)).slice(0, 60));
+  const okM = surpriseSlots('mystery') > 0, okW = surpriseSlots('wild') > 0;
+  const btn = (p, kind, ok) => {
+    const on = nx && !swap && nx.p.id === p.id && nx.kind === kind;
+    const tag = kind === 'wild' ? '🃏 WILD CARD' : '🕵️ MYSTERY';
+    return `<button class="mini${on ? ' on' : ''}" data-act="sp-pick" data-pid="${esc(p.id)}" data-kind="${kind}" ${ok ? '' : 'disabled title="No ' + (kind === 'wild' ? 'wild card' : 'mystery') + ' slots left. Raise the limit in Setup → Surprises."'}>${on ? '✓ ' : ''}${tag}</button>`;
+  };
+  const row = p => `<tr class="${nx && !swap && nx.p.id === p.id ? 'sp-on' : ''}"><td class="pid">${p.wild ? '🃏 ' + esc(p.wcode || 'WILD') : p.mystery ? '🕵️ ' + esc(p.mcode || 'M-?') : '#' + esc(pnum(p))}</td><td class="pname">${esc(p.name)}</td><td>${roleText(p)}</td><td class="r">${esc(p.rating)}</td><td class="r money">${money(p.base)}</td><td class="r"><div class="acts">${btn(p, 'mystery', okM)}${btn(p, 'wild', okW)}</div></td></tr>`;
+  patch(el, list.length
+    ? `<table class="tbl"><thead><tr><th>Code</th><th>Player</th><th>Role</th><th class="r">Rating</th><th class="r">Base</th><th class="r">Use as</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>${!q.trim() ? '<p class="muted" style="margin-top:8px">These are the players waiting in the surprise pool. Search to turn any other available player into a mystery or wild card.</p>' : ''}`
+    : `<p class="muted">${q.trim() ? 'No available player matches.' : 'The surprise pool is empty. Search for any available player to make them a mystery or wild card.'}</p>`);
+}
+function makeSurprise(p, kind) {
+  if (kind === 'wild') { p.wild = true; p.mystery = false; if (!p.wcode) p.wcode = nextCode('WC-', 'wcode'); }
+  else { p.mystery = true; p.wild = false; if (!p.mcode) p.mcode = nextCode('M-', 'mcode'); if (!p.clues || !p.clues.length) p.clues = autoClues(p); }
+  p.surprised = false; p.revealed = false;
+  S.queue = S.queue.filter(x => x !== p.id);
+}
+/* Swap the surprise player on the block (no bids yet) for another one. */
+function swapSurprise(np, kind) {
+  const old = lotPlayer(), oldKind = old.wild ? 'wild' : 'mystery', gap = S.surprise.gap;
+  old.surprised = false; old.revealed = false; old.wildAt = null;
+  S.wildUsed = S.wildUsed.filter(x => x !== old.id);
+  S.surprise.n[oldKind] = Math.max(0, (S.surprise.n[oldKind] || 0) - 1);
+  log({ type: 'correction', pid: old.id, note: `Surprise changed: ${old.name} → ${np.name} (${kind === 'wild' ? 'wild card' : 'mystery'})` });
+  loadSurprise(np, kind);
+  S.surprise.gap = gap;
+}
+function pickSurprisePlayer(pid, kind) {
+  const p = P(pid);
+  if (!p || p.status !== 'available') return toast('That player is not available.', 'warn');
+  if (surpriseSlots(kind) <= 0) return toast(`No ${kind === 'wild' ? 'wild card' : 'mystery'} slots left. Raise the limit in Setup → Surprises.`, 'warn');
+  const swap = surpriseMode() === 'swap';
+  commit(() => {
+    makeSurprise(p, kind);
+    if (swap) swapSurprise(p, kind);
+    else S.surprise.next = { kind, pid: p.id, manual: true };
+  });
+  if (swap) { closeModal(); toast(`${p.name} is now the ${kind === 'wild' ? 'wild card' : 'mystery player'} on the block.`, 'good'); }
+  else toast(`${p.name} pops in next as a ${kind === 'wild' ? 'wild card' : 'mystery player'}.`, 'good');
+}
+function randomSurprise() {
+  if (surpriseMode() === 'swap') {
+    const pick = pickSurprise();
+    if (!pick) return toast('No other mystery or wild card players in the pool.', 'warn');
+    return pickSurprisePlayer(pick.p.id, pick.kind);
+  }
+  const was = surpriseNext();
+  commit(() => rollNextSurprise(was && was.p.id));
+  const nx = surpriseNext();
+  toast(nx ? `Random pick: ${nx.p.name} (${nx.kind === 'wild' ? 'wild card' : 'mystery'}).` : 'The surprise pool is empty.', nx ? 'good' : 'warn');
+}
+/* Pop the next surprise onto the block right now. */
+function popSurpriseNow() {
+  const lv = S.live;
+  if (surpriseMode() === 'swap') return toast('A surprise player is already on the block.', 'info');
+  if (lv.phase === 'bidding' && lv.bids.length) return toast('Finish bidding on the current player first (S or U).', 'warn');
+  if (!surpriseNext()) commit(() => rollNextSurprise());
+  const pick = surpriseNext();
+  if (!pick) return toast('No mystery or wild card players left in the pool.', 'warn');
+  closeModal();
+  commit(() => {
+    const cur = lotPlayer();
+    if (cur && cur.status === 'available' && lv.phase !== 'done') S.queue.unshift(cur.id);
+    log({ type: 'correction', pid: pick.p.id, note: 'Surprise popped in by the auctioneer' });
+    loadSurprise(pick.p, pick.kind);
+  });
+  nav('control');
+}
+
 function openTeamModal(tid) {
   const t = T(tid); if (!t) return;
   openModal({ id: 'team', title: esc(t.name), wide: true, live: () => { const b = $('#teamModalBody'); if (b) patch(b, teamCardHTML(t, { squad: true, bare: true })); }, body: `<div id="teamModalBody">${teamCardHTML(t, { squad: true, bare: true })}</div>`, foot: '<button class="btn ghost" data-act="modal-close">CLOSE <kbd>Esc</kbd></button>' });
@@ -3519,7 +3670,9 @@ function bindChange(el) {
   commit(() => {
     setPath(S, path, v);
     if (path.startsWith('rules.surprise.')) { const R = S.rules.surprise; S.surprise.gap = clamp(S.surprise.gap, Math.min(R.min, R.max), Math.max(R.min, R.max)); }
+    if (path === 'rules.order') rebuildQueue();
   });
+  if (path === 'rules.order') toast(v === 'queue' ? 'Queue rebuilt in set order.' : 'Queue reshuffled.', 'good');
   if (path.startsWith('rules.currency') || path.startsWith('rules.surprise') || path === 'rules.mystery.auto' || path === 'rules.wild.when' || path === 'rules.wild.specialBase' || path === 'rules.mystery.hide') PAGES.setup.build();
 }
 
@@ -3598,7 +3751,10 @@ const SETUP = {
       </div></section>`;
   },
   sets() {
-    return `<section class="card"><h2>Auction sets <small>Players are auctioned set by set, in this order.</small></h2>
+    return `<section class="card"><h2>Player order <small>How the next player is picked.</small></h2>
+        <div class="form-grid">${fld('Players come up', 'rules.order', 'select', { opts: [['random', 'At random from the whole pool'], ['sets', 'Set by set, random inside each set'], ['queue', 'Set by set, in player-number order']] })}</div>
+        <p style="margin-top:8px">Changing this reshuffles the queue. You can still reorder, add or shuffle players in the control room. Mystery and wild card players always pop in by surprise.</p></section>
+      <section class="card"><h2>Auction sets <small>Used by “Set by set” order and for set announcements.</small></h2>
         <div class="row" style="margin-bottom:10px">${fld('Put overseas players in their own set when sets are auto-built', 'rules.setOverseas', 'bool')}</div>
         <div class="row" style="margin-bottom:12px"><button class="btn gold sm" data-act="set-auto">AUTO-BUILD SETS FROM PLAYER DATA</button><button class="btn ghost sm" data-act="set-new">+ NEW CUSTOM SET</button><button class="btn ghost sm" data-act="q-rebuild">REBUILD THE QUEUE FROM SETS</button></div>
         ${S.sets.map((s, i) => { const n = S.players.filter(p => p.setId === s.id).length; return `<div class="set-row">
@@ -3619,7 +3775,7 @@ const SETUP = {
           ${fld('What pops in', 'rules.surprise.mysteryPct', 'select', { vt: 'int', opts: [[50, 'Mystery or wild card, 50/50'], [75, 'Mostly mystery players'], [25, 'Mostly wild cards'], [100, 'Only mystery players'], [0, 'Only wild cards']] })}
           ${fld('Mystery players allowed', 'rules.mystery.max', 'int', { min: 0 })}${fld('Wild cards allowed', 'rules.wild.max', 'int', { min: 0 })}</div>` : ''}
         <p style="margin-top:12px">So far: 🕵️ ${sn.mystery || 0} mystery and 🃏 ${sn.wild || 0} wild card. Waiting in the pool: ${surprisePool('mystery').length} mystery and ${surprisePool('wild').length} wild card players.</p>
-        <p class="muted">Players marked Mystery or Wild card on the Players page wait in the surprise pool and never join the normal queue. Only the control room shows when the next one is due.</p></section>
+        <p class="muted">Players marked Mystery or Wild card on the Players page wait in the surprise pool and never join the normal queue. Only the control room shows when the next one is due and who it is; click that box to change the player or pop one in now.</p></section>
       <section class="card" style="border-top:6px solid var(--purple)"><h2>🕵️ Mystery players <small>A player whose identity stays hidden until the reveal.</small></h2>
         <div class="two-col"><div style="display:flex;flex-direction:column;gap:10px"><span class="lbl">What is hidden</span>
           ${radio('rules.mystery.hide', 'name', 'Name only', 'Photo, role and rating are visible.')}${radio('rules.mystery.hide', 'name_photo', 'Name and photo', 'Role and rating are visible.')}${radio('rules.mystery.hide', 'name_role', 'Name and role', 'Photo and rating are visible.')}${radio('rules.mystery.hide', 'all', 'Everything', 'Only the base price and the clues are shown.')}</div>
@@ -3793,9 +3949,10 @@ function projLot(p) {
 }
 function projIdle() {
   const st = D().st;
-  const q = S.queue.map(id => P(id)).filter(queueable).slice(0, 4);
+  const left = S.queue.map(id => P(id)).filter(queueable);
+  const q = S.rules.order === 'queue' ? left.slice(0, 4) : [];
   const hl = (k, v, s) => `<div><span>${k}</span><b>${v}</b><small>${s}</small></div>`;
-  return `<div class="pj-idle"><div><div class="pj-lbl">UP NEXT</div><h1 style="margin:.15em 0 .45em">${q.length ? 'NEXT PLAYER COMING UP' : 'AUCTION PAUSED'}</h1>
+  return `<div class="pj-idle"><div><div class="pj-lbl">UP NEXT</div><h1 style="margin:.15em 0 .45em">${!left.length ? 'AUCTION PAUSED' : q.length ? 'NEXT PLAYER COMING UP' : '🎲 RANDOM PICK COMING UP'}</h1>
       <ol>${q.map(p => `<li>${isHiddenNow(p) ? '<span class="ph sm mys">?</span>' : photoHTML(p, 'sm')}<span>${esc(publicName(p))}<br><small>${isHiddenNow(p) ? 'MYSTERY PLAYER' : roleText(p)} · BASE ${money(lotBase(p))}</small></span></li>`).join('')}</ol></div>
     <div class="pj-hl">${hl('MOST EXPENSIVE', st.most ? money(st.most.soldPrice) : '—', st.most ? esc(st.most.name) : '')}${hl('PLAYERS SOLD', st.sold, money(st.total) + ' SPENT')}${hl('BIGGEST BIDDING WAR', st.war ? plural(st.war.n, 'BID') : '—', st.war ? esc((P(st.war.pid) || {}).name || '') : '')}${hl('BIGGEST BARGAIN', st.bargain ? money(st.bargain.p.soldPrice) : '—', st.bargain ? esc(st.bargain.p.name) : '')}</div></div>`;
 }
@@ -4336,6 +4493,11 @@ const ACT = {
     onOk: () => { commit(() => { rebuildQueue(); if (S.live.phase === 'empty') advance(); }); toast('Queue rebuilt from the sets.', 'good'); },
   }),
   skip: () => skipCurrent(),
+  'q-shuffle': () => { commit(() => shuffleQueue()); toast('Queue shuffled.', 'good'); },
+  'surprise-pick': () => openSurprisePick(),
+  'sp-pick': d => pickSurprisePlayer(d.pid, d.kind),
+  'sp-random': () => randomSurprise(),
+  'sp-pop': () => popSurpriseNow(),
   'unsold-round': () => startUnsoldRound(UI.unsoldSel.slice()),
   'unsold-pool': () => { UI.unsoldSel = S.players.filter(p => p.status === 'unsold' && p.pool).map(p => p.id); renderNow(); },
   shortcuts: () => openShortcuts(),
@@ -4470,6 +4632,7 @@ const IN = {
   'dock-q': el => { UI.dockQ = el.value; renderDockBody(); },
   'pl-q': el => { UI.plQ = el.value; PAGES.players.update(); },
   qa: () => drawAddQueue(),
+  sp: () => drawSurprisePick(),
   cb: () => drawCustom(),
   'cf-type': el => { const ok = $('#cfOk'); if (ok && MODAL) ok.disabled = el.value !== MODAL.typed; },
   'judge-name': el => {
