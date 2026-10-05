@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>College IPL Auction: Auctioneer's Guide</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+  :root { --navy:#0b1233; --ink:#1b1f2e; --muted:#5b6175; --gold:#c99a1e; --line:#d9dce5; --soft:#f3f4f8; --green:#2f7d32; --red:#c62828; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 10.5pt/1.45 "DejaVu Sans", "Liberation Sans", Arial, sans-serif; color: var(--ink); }
+  h1 { font-size: 24pt; line-height: 1.1; margin: 0 0 4pt; color: var(--navy); }
+  .sub { color: var(--muted); font-size: 11pt; margin: 0 0 14pt; }
+  .band { background: var(--navy); color:#fff; border-radius: 6pt; padding: 12pt 14pt; margin-bottom: 14pt; }
+  .band h1 { color:#fff; }
+  .band .sub { color:#c9cee0; margin:0; }
+  h2 { font-size: 13.5pt; color: var(--navy); margin: 16pt 0 6pt; padding-bottom: 3pt; border-bottom: 2pt solid var(--gold); break-after: avoid; }
+  h3 { font-size: 11pt; margin: 10pt 0 4pt; color: var(--navy); break-after: avoid; }
+  p { margin: 0 0 6pt; }
+  ol, ul { margin: 0 0 6pt; padding-left: 16pt; }
+  li { margin: 0 0 3pt; }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 8pt; break-inside: avoid; }
+  th, td { text-align: left; vertical-align: top; padding: 4pt 6pt; border-bottom: 0.6pt solid var(--line); }
+  th { background: var(--soft); font-size: 9pt; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  td:first-child { white-space: nowrap; font-weight: bold; }
+  kbd { display:inline-block; font: bold 9pt "DejaVu Sans Mono", monospace; border: 0.8pt solid #9aa0b4; border-bottom-width: 1.6pt; border-radius: 3pt; padding: 0 4pt; background:#fff; white-space: nowrap; }
+  .tip { background: #fff8e1; border-left: 3pt solid var(--gold); padding: 6pt 9pt; margin: 6pt 0 8pt; break-inside: avoid; }
+  .flow { display: flex; gap: 5pt; margin: 6pt 0 10pt; break-inside: avoid; }
+  .flow div { flex: 1; background: var(--soft); border-radius: 5pt; padding: 6pt; text-align: center; font-size: 9pt; }
+  .flow b { display:block; font-size: 10pt; color: var(--navy); margin-bottom: 2pt; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
+  .card { border: 0.8pt solid var(--line); border-radius: 5pt; padding: 7pt 9pt; break-inside: avoid; }
+  .card h3 { margin-top: 0; }
+  .page-break { break-before: page; }
+  .foot { color: var(--muted); font-size: 8.5pt; margin-top: 14pt; border-top: 0.6pt solid var(--line); padding-top: 5pt; }
+</style>
+</head>
+<body>
+
+<div class="band">
+  <h1>College IPL Auction</h1>
+  <p class="sub">Auctioneer's guide: how the page works and how to run the auction</p>
+</div>
+
+<h2>How the page works</h2>
+<p>The whole auction is one file, <b>index.html</b>. There is no server and nothing to install. Open it in <b>Chrome or Edge</b> on the auctioneer's laptop. Every action saves automatically in that browser, so the auction comes back after a refresh or a crash.</p>
+<table>
+  <tr><th style="width:28%">Screen</th><th>What it's for</th></tr>
+  <tr><td>Auction (control room)</td><td>Where you run the auction live</td></tr>
+  <tr><td>Players / Teams</td><td>Player list, squads and purses</td></tr>
+  <tr><td>Setup</td><td>Event name, teams, rules, players, sets and order, surprises, backup</td></tr>
+  <tr><td>Reports / Judging</td><td>Results, statistics, judging panel, awards, exports</td></tr>
+  <tr><td>Fixes</td><td>Corrections after the fact</td></tr>
+  <tr><td>Projector</td><td>The audience view on the big screen</td></tr>
+</table>
+
+<h2>Before the event</h2>
+<ol>
+  <li><b>Setup &rarr; Event &amp; teams:</b> enter the event name and the teams: name, short code, colour and owner for each.</li>
+  <li><b>Setup &rarr; Auction rules:</b> set the purse, squad size, overseas limit, RTM cards and bid steps.</li>
+  <li><b>Setup &rarr; Players:</b> load the IPL players or import your own CSV. Then press <b>SAVE PHOTOS OFFLINE</b> while you are online, so photos work without internet at the venue.</li>
+  <li><b>Setup &rarr; Sets &amp; order:</b> choose random order (the default), random within each set, or fixed set order.</li>
+  <li><b>Setup &rarr; Surprises:</b> choose how often mystery and wild card players pop in, and how many of each.</li>
+  <li>The sample practice auction is still loaded. Clear it with <b>Setup &rarr; Backup &amp; reset &rarr; Clear results</b>.</li>
+  <li><b>Export backup</b> before the event and again at every break.</li>
+  <li><b>Projector:</b> press <kbd>V</kbd> to show the projector view on the same screen, or open a second window and drag it onto the projector.</li>
+</ol>
+
+<h2>Running the auction</h2>
+<div class="flow">
+  <div><b>1. Start</b>START AUCTION or <kbd>Enter</kbd></div>
+  <div><b>2. Open</b><kbd>Enter</kbd> or tap the first team</div>
+  <div><b>3. Bid</b>Tap a team or press its number</div>
+  <div><b>4. Close</b><kbd>G</kbd> once, twice, close</div>
+  <div><b>5. Result</b>Sold or unsold, next player comes up</div>
+</div>
+<ol>
+  <li><b>Start:</b> press <b>START AUCTION</b> or <kbd>Enter</kbd>. The projector shows "THE AUCTION IS LIVE" and the first random player comes onto the block.</li>
+  <li><b>Open the bidding:</b> press <kbd>Enter</kbd>, or just tap the team that bids first. The opening bid is the player's base price.</li>
+  <li><b>Take bids:</b> when a paddle goes up, tap that team's button or press its number key (<kbd>1</kbd>&ndash;<kbd>9</kbd>, <kbd>0</kbd>, <kbd>Shift</kbd>+<kbd>1</kbd>&ndash;<kbd>5</kbd>).
+    <ul>
+      <li><kbd>Space</kbd> brings the other team back in during a two-team bidding war.</li>
+      <li>The <b>+</b> buttons raise the step; <kbd>C</kbd> enters a custom amount.</li>
+      <li>The page blocks any bid a team can't afford or isn't allowed to make.</li>
+    </ul>
+  </li>
+  <li><b>Close the bidding:</b> click the <b>BIDDING</b> box or press <kbd>G</kbd>. The first press calls <i>Going once</i>, the second <i>Going twice</i>, the third closes it. Any new bid resets it to OPEN.</li>
+  <li><b>Result:</b> with a bid, it confirms the sale (offering RTM first if a team holds a card for that player). With no bids, it asks whether to mark the player unsold. The next player then comes up automatically.</li>
+</ol>
+
+<h3>Other buttons</h3>
+<table>
+  <tr><th style="width:24%">Button</th><th style="width:16%">Key</th><th>Use</th></tr>
+  <tr><td>UNDO</td><td><kbd>R</kbd></td><td>Remove the last bid, or undo the last sale</td></tr>
+  <tr><td>PASS</td><td><kbd>X</kbd></td><td>Mark teams that are out for this player</td></tr>
+  <tr><td>RTM</td><td><kbd>T</kbd></td><td>Right to Match</td></tr>
+  <tr><td>SOLD / UNSOLD</td><td><kbd>S</kbd> / <kbd>U</kbd></td><td>Close the bidding straight away</td></tr>
+  <tr><td>Wrong team?</td><td>&mdash;</td><td>Fix a bid recorded for the wrong team</td></tr>
+  <tr><td>Alert</td><td><kbd>A</kbd></td><td>Breaking-news alert on the projector</td></tr>
+  <tr><td>Next / previous</td><td><kbd>N</kbd> / <kbd>P</kbd></td><td>Move to the next or previous player</td></tr>
+</table>
+
+<h2>Surprise players: mystery and wild card</h2>
+<ul>
+  <li>They pop in automatically every few players. The dice box in the control room, which only you can see, shows who comes next.</li>
+  <li>Click the dice box to:
+    <ul>
+      <li>pick a different surprise player;</li>
+      <li>turn any available player into a mystery or wild card;</li>
+      <li><b>pop one in now</b>;</li>
+      <li>swap the surprise player on the block, as long as nobody has bid yet.</li>
+    </ul>
+  </li>
+  <li>Mystery players show clues on their own and are then revealed. <kbd>M</kbd> shows the next clue and <kbd>Shift</kbd>+<kbd>M</kbd> reveals the player now.</li>
+</ul>
+
+<h2>Keyboard shortcuts</h2>
+<div class="two">
+  <table>
+    <tr><th>Key</th><th>Action</th></tr>
+    <tr><td><kbd>Enter</kbd></td><td>Start the auction, confirm, or open the bidding</td></tr>
+    <tr><td><kbd>Space</kbd></td><td>Next bid (other team in a bidding war)</td></tr>
+    <tr><td><kbd>1</kbd>&ndash;<kbd>9</kbd>, <kbd>0</kbd></td><td>Bid for teams 1 to 10</td></tr>
+    <tr><td><kbd>Shift</kbd>+<kbd>1</kbd>&ndash;<kbd>5</kbd></td><td>Bid for teams 11 to 15</td></tr>
+    <tr><td><kbd>G</kbd></td><td>Going once, going twice, close</td></tr>
+    <tr><td><kbd>S</kbd> / <kbd>U</kbd></td><td>Sold / unsold</td></tr>
+    <tr><td><kbd>R</kbd></td><td>Undo</td></tr>
+  </table>
+  <table>
+    <tr><th>Key</th><th>Action</th></tr>
+    <tr><td><kbd>N</kbd> / <kbd>P</kbd></td><td>Next / previous player</td></tr>
+    <tr><td><kbd>M</kbd> / <kbd>Shift</kbd>+<kbd>M</kbd></td><td>Next clue / reveal mystery now</td></tr>
+    <tr><td><kbd>T</kbd></td><td>Right to Match</td></tr>
+    <tr><td><kbd>C</kbd></td><td>Custom bid</td></tr>
+    <tr><td><kbd>X</kbd></td><td>Pass</td></tr>
+    <tr><td><kbd>A</kbd></td><td>Breaking news alert</td></tr>
+    <tr><td><kbd>V</kbd> / <kbd>F</kbd></td><td>Projector view / full screen</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Cancel, close, or hide an alert</td></tr>
+  </table>
+</div>
+
+<h2>Tips for the auctioneer</h2>
+<div class="tip">Keep one hand on the number keys and the other on <kbd>G</kbd> and <kbd>S</kbd>. Call "going once" and "going twice" out loud as you press <kbd>G</kbd>.</div>
+<ul>
+  <li>Holding a key down or double-clicking never counts twice.</li>
+  <li>Mistakes are fixable: <kbd>R</kbd> undoes, and the <b>Fixes</b> page handles later corrections. Nothing is ever deleted from the history.</li>
+  <li>Photos need internet unless you pressed <b>SAVE PHOTOS OFFLINE</b> beforehand. Players without a photo show their initials.</li>
+  <li>Export a backup at every break. <b>Restore backup</b> loads it on any machine.</li>
+  <li>At the end, <b>Reports</b> has team squads, statistics and awards, with CSV, Excel and PDF exports.</li>
+</ul>
+
+<h2>Quick checklist on the day</h2>
+<div class="two">
+  <div class="card">
+    <h3>Before you start</h3>
+    <ul>
+      <li>Sample data cleared</li>
+      <li>Teams, purses and rules checked</li>
+      <li>Photos saved offline</li>
+      <li>Backup exported</li>
+      <li>Projector showing "starts soon"</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>During and after</h3>
+    <ul>
+      <li>One person on the laptop, one calling bids</li>
+      <li>Backup at every break</li>
+      <li>Check squads in Reports</li>
+      <li>Show awards on the projector</li>
+      <li>Export final results</li>
+    </ul>
+  </div>
+</div>
+
+<p class="foot">College IPL Auction &middot; auctioneer's guide. Player data from the IPL-DATASET by Ritesh Ojha (MIT License).</p>
+</body>
+</html>
