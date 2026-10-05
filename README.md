@@ -44,13 +44,17 @@ A control room for running a college IPL-style player auction from one laptop. I
 
 Every action saves instantly in the browser the auction runs in, and the auction comes back after a refresh or a crash. That storage belongs to one browser on one laptop, so use **Export backup** (in Setup → Backup & reset, or Reports) before the event and at breaks. **Restore backup** loads it on any machine.
 
+## Player photos
+
+Photos need internet. The app tries the dataset's image link first, then a photo from Wikipedia found by the player's name; players with neither show their initials. Before the event, open **Players** (or **Setup → Players**) and press **📷 SAVE PHOTOS OFFLINE** once while online. Every photo it finds is saved inside the auction, so it shows without internet and is included in **Export backup**. Add any missing photos with **BULK PHOTOS** or **Edit player**.
+
 ## Importing your own players
 
 Use a CSV or Excel file with a header row. Recognised columns: Player ID, Name, Role, Batting, Bowling, Rating, Base Price, Category, Overseas, Tags, Mystery, Wild Card, Set, RTM Team, Clues, Photo URL. Separate several tags or clues with `|`. **Players → CSV template** downloads an example file.
 
 ## Data credits
 
-Player data comes from the [IPL-DATASET](https://github.com/ritesh-ojha/IPL-DATASET) by Ritesh Ojha: the 2024 player details, match line-ups and ball-by-ball data. Stats are aggregated from it; ratings, roles, base prices and tags are calculated by this app. The dataset has no nationality column, so overseas players were marked by name. Player photos load from the image links listed in the dataset.
+Player data comes from the [IPL-DATASET](https://github.com/ritesh-ojha/IPL-DATASET) by Ritesh Ojha: the 2024 player details, match line-ups and ball-by-ball data. Stats are aggregated from it; ratings, roles, base prices and tags are calculated by this app. The dataset has no nationality column, so overseas players were marked by name. Player photos load from the image links listed in the dataset; when a link doesn't load, the app looks the player up on Wikipedia instead.
 
 The dataset is published under the MIT License:
 
