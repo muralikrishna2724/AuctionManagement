@@ -1249,15 +1249,17 @@ function mediaURL(ref) {
    link from the dataset → a photo found on Wikipedia by the player's name → initials.
    Links that fail and photos found on Wikipedia are remembered in this browser. */
 const PHOTO = (() => { let c = {}; try { c = JSON.parse(localStorage.getItem('photo-cache') || '{}') || {}; } catch (e) {} return { bad: c.bad || {}, alt: c.alt || {} }; })();
+/* A failed link is skipped for a day, then tried again (it may have been a network blip). */
+const isBadPhoto = u => !!PHOTO.bad[u] && Date.now() - PHOTO.bad[u] < 864e5;
 function savePhotoCache() { try { localStorage.setItem('photo-cache', JSON.stringify(PHOTO)); } catch (e) {} }
 const photoKey = p => normKey(p.name);
 const PHOTO_NAMES = new Map();   // photo key -> player name, for looking photos up
 function photoSrc(p) {
   if (!p) return '';
   if (p.photo && p.photo.startsWith('m:')) return mediaURL(p.photo);
-  if (p.photo && !PHOTO.bad[p.photo]) return p.photo;
+  if (p.photo && !isBadPhoto(p.photo)) return p.photo;
   const k = photoKey(p), alt = PHOTO.alt[k];
-  if (alt && !PHOTO.bad[alt]) return alt;
+  if (alt && !isBadPhoto(alt)) return alt;
   if (alt === undefined && p.name) queueWikiPhoto(p.name);
   return '';
 }
@@ -1286,7 +1288,7 @@ async function pumpWiki() {
     const name = WIKI_Q.shift(), k = normKey(name);
     if (PHOTO.alt[k] !== undefined) continue;
     let url;
-    try { url = await wikiPhoto(name); } catch (e) { WIKI_Q.length = 0; break; }   // offline or blocked: try again next time
+    try { url = await wikiPhoto(name); } catch (e) { WIKI_Q.length = 0; PHOTO_SEEN.wikiFail++; break; }   // offline or blocked: try again next time
     PHOTO.alt[k] = url;
     savePhotoCache();
     if (url) paintPhoto(k, url);
@@ -1304,6 +1306,18 @@ async function wikiPhoto(name) {
   const hit = pages.find(pg => pg.thumbnail && pg.thumbnail.source && normKey(pg.title).includes(last));
   return hit ? hit.thumbnail.source : '';
 }
+/* If no internet photo loads at all, say so once instead of failing silently. */
+const PHOTO_SEEN = { ok: 0, fail: 0, wikiFail: 0, warned: false };
+document.addEventListener('load', e => { const t = e.target; if (t && t.tagName === 'IMG' && t.closest('.ph') && /^https?:/.test(t.getAttribute('src') || '')) PHOTO_SEEN.ok++; }, true);
+function photoWarnCheck() {
+  if (PHOTO_SEEN.warned || PHOTO_SEEN.ok || !(PHOTO_SEEN.fail + PHOTO_SEEN.wikiFail)) return;
+  PHOTO_SEEN.warned = true;
+  if (typeof MODE !== 'undefined' && MODE === 'projector') return;
+  toast(navigator.onLine === false
+    ? '📷 No player photos: this computer is offline. Connect to the internet, or use photos saved with SAVE PHOTOS OFFLINE.'
+    : '📷 Player photos are being blocked: this browser or viewer cannot load images from the internet. Open index.html directly in Chrome or Edge, then press SAVE PHOTOS OFFLINE on the Players page.', 'warn', 15000);
+}
+setTimeout(photoWarnCheck, 9000);
 /* A failed photo link: show initials, remember it, and look for another photo. */
 document.addEventListener('error', e => {
   const img = e.target;
@@ -1313,7 +1327,8 @@ document.addEventListener('error', e => {
   const src = img.getAttribute('src') || '';
   img.remove();
   if (!/^https?:/.test(src)) return;
-  PHOTO.bad[src] = 1;
+  PHOTO_SEEN.fail++;
+  PHOTO.bad[src] = Date.now();
   const k = ph.dataset.pk;
   if (k && PHOTO.alt[k] === src) PHOTO.alt[k] = '';
   savePhotoCache();
