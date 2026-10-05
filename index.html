@@ -65,7 +65,7 @@ kbd{font:700 11px/1 var(--f-body);padding:3px 5px;border-radius:5px;background:r
 .rail-foot{margin-top:auto;display:flex;flex-direction:column;gap:4px}
 .pages{min-height:0;min-width:0;position:relative}
 .page{height:100%;overflow:auto;min-width:0}
-.page.control{overflow:hidden}
+.page.control{overflow-x:hidden;overflow-y:auto}
 
 /* ---------- Top bar ---------- */
 .topbar{display:flex;align-items:center;gap:16px;padding:0 16px;border-bottom:1px solid var(--line);min-width:0;background:var(--navy)}
@@ -163,7 +163,7 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .logo.lg{width:72px;height:72px;font-size:24px;border-radius:14px}
 
 /* ---------- Control room ---------- */
-.cr{display:grid;height:100%;grid-template-columns:minmax(250px,.95fr) minmax(420px,1.45fr) minmax(270px,1fr);grid-template-rows:minmax(0,1fr) minmax(190px,31%);gap:10px;padding:10px 16px 12px;position:relative}
+.cr{display:grid;height:100%;min-height:620px;grid-template-columns:minmax(250px,.95fr) minmax(420px,1.45fr) minmax(270px,1fr);grid-template-rows:minmax(0,1fr) minmax(190px,31%);gap:10px;padding:10px 16px 12px;position:relative}
 .panel{background:var(--navy-2);border:1px solid var(--line);border-radius:var(--r);min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .cr-player{grid-column:1;grid-row:1;overflow-y:auto}
 .cr-bid{grid-column:2;grid-row:1;overflow-y:auto}
@@ -303,7 +303,6 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .bp-teams{display:grid;grid-template-columns:repeat(var(--cols,4),minmax(0,1fr));gap:6px}
 .chip,.act,.jump,.closer,.surp,.btn,.mini,.trow,.qi,.icon-btn,.fchip{transition:background-color .12s,border-color .12s,filter .12s,transform .08s,opacity .15s}
 .chip:active,.act:active,.jump:active,.closer:active,.surp:active,.trow:active{transform:scale(.97)}
-.panel,.qlist,.trows,.cr-player,.cr-bid{scroll-behavior:smooth;overscroll-behavior:contain}
 .chip{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0;border:1px solid var(--line-2);border-top:5px solid var(--tc);border-radius:10px;background:var(--navy-3);padding:7px 8px 6px;text-align:left}
 .chip:hover{background:var(--navy-4)}
 .chip kbd{position:absolute;top:6px;right:6px;font-size:10px;padding:2px 4px}
