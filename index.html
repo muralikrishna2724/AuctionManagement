@@ -638,6 +638,25 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .pj-lot.k-wild{--k:var(--orange)}
 .pj-player{display:flex;flex-direction:column;gap:.6em;min-width:0}
 .pj-ph-row{display:flex;align-items:center;gap:1.4em;min-width:0}
+/* Curtain: the last result stays up and the next player is hidden until the auctioneer shows them */
+.pj-curtain{height:100%;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:2em;align-items:center}
+.pj-last{background:rgba(18,26,46,.75);border:1px solid var(--line);border-top:.4em solid var(--tc,var(--gold));border-radius:1em;padding:1.1em 1.4em;display:flex;flex-direction:column;gap:.55em;min-width:0}
+.pj-last .tag-s{font:900 1.3em/1 var(--f-cond);letter-spacing:.24em;color:var(--gold)}
+.pj-last .tag-s.red{color:var(--red)}
+.pj-last .who{display:flex;align-items:center;gap:1em;min-width:0}
+.pj-last .who .ph{width:2.4em;height:2.4em;font-size:2.4em;flex:none;box-shadow:0 0 0 4px var(--paper)}
+.pj-last .nm{font:2.6em/1 var(--f-display);letter-spacing:.01em;text-transform:uppercase;min-width:0}
+.pj-last .to{font:800 1.15em/1 var(--f-cond);letter-spacing:.22em;color:var(--sand)}
+.pj-last .team{display:flex;align-items:center;gap:.5em;font:900 2.5em/1 var(--f-cond);letter-spacing:.03em;text-transform:uppercase;min-width:0}
+.pj-last .team span{min-width:0;line-height:1.05}
+.pj-last .team .logo{width:1.5em;height:1.5em;font-size:.45em;border-radius:.3em}
+.pj-last .amt{font:900 3.6em/.9 var(--f-cond);color:var(--gold);font-variant-numeric:tabular-nums}
+.pj-last .rtm{font:800 1.1em/1 var(--f-cond);letter-spacing:.12em;color:var(--blue)}
+.pj-next{display:flex;flex-direction:column;align-items:center;gap:.7em;text-align:center}
+.pj-next .q{width:min(30vh,20vw);height:min(30vh,20vw);border-radius:50%;display:grid;place-items:center;font:min(16vh,11vw)/1 var(--f-display);color:var(--gold);background:radial-gradient(circle at 50% 35%,#24305a,#0b1020);box-shadow:0 0 0 6px rgba(251,191,36,.35),0 0 60px rgba(251,191,36,.25);animation:pulse 2s infinite}
+.pj-next h2{font:3em/1 var(--f-display);letter-spacing:.02em}
+.pj-next p{margin:0;font:800 1.2em/1.2 var(--f-cond);letter-spacing:.18em;color:var(--sand)}
+.pj-curtain.solo{grid-template-columns:minmax(0,1fr)}
 .pj-player .ph{width:min(25vh,18vw);height:min(25vh,18vw);font-size:min(8vh,6vw);box-shadow:0 0 0 6px var(--paper),0 0 40px color-mix(in srgb,var(--k) 45%,transparent)}
 .pj-ident{display:flex;flex-direction:column;gap:.45em;min-width:0}
 .pj-id{font:800 1.15em/1 var(--f-cond);letter-spacing:.18em;color:var(--k)}
@@ -1124,6 +1143,7 @@ function defaultRules() {
     lowPurse: cr2l(10),
     autoAdvance: true,
     order: 'random',
+    curtain: true,          // keep each new player hidden on the projector until the auctioneer shows them
     unsoldCut: 0,
     currency: { sym: '₹', unit: 'Cr' },
     mystery: { hide: 'all', reveal: 'before', max: 5, auto: true, every: 6 },
@@ -2103,7 +2123,8 @@ function loadLot(pid, how) {
   const prevSet = l ? (S.players.find(x => x.id === l.pid) || {}).setId : null;
   S.queue = S.queue.filter(x => x !== pid);
   if (p.status === 'unsold') { p.status = 'available'; p.pool = false; }
-  S.live = Object.assign(emptyLive(), { lotId: uid('lot'), pid, phase: 'ready', revealed: !(p.mystery && !p.revealed), how: how || 'queue' });
+  S.live = Object.assign(emptyLive(), { lotId: uid('lot'), pid, phase: 'ready', revealed: !(p.mystery && !p.revealed), how: how || 'queue',
+    shown: how === 'surprise' || S.rules.curtain === false || SIM });   // surprises have their own entrance
   if (p.wild && !S.wildUsed.includes(pid)) { S.wildUsed.push(pid); p.wildAt = NOW(); }
   if (how !== 'surprise' && p.setId && p.setId !== prevSet) fire('set', { setId: p.setId, pid }, true);
 }
@@ -2159,11 +2180,21 @@ function loadSurprise(p, kind) {
   }
 }
 
+/* The curtain: a new player stays off the projector (which keeps showing the last result)
+   until the auctioneer shows them. lv.shown === false means hidden; older saves have no flag. */
+const onCurtain = () => S.live.phase === 'ready' && S.live.shown === false;
+function showOnProjector() {
+  if (!onCurtain()) return false;
+  commit(() => { S.live.shown = true; });
+  SFX.alert();
+  return true;
+}
 function startBidding() {
   const lv = S.live, p = lotPlayer();
   if (!p || lv.phase !== 'ready') return false;
+  if (lv.shown === false) return showOnProjector();
   if (isHiddenNow(p) && S.rules.mystery.reveal === 'before') { toast('Reveal the mystery player first (press M).', 'warn'); return false; }
-  commit(() => { lv.phase = 'bidding'; lv.startedAt = NOW(); lv.call = 0; log({ type: 'start', pid: p.id }); });
+  commit(() => { lv.phase = 'bidding'; lv.startedAt = NOW(); lv.call = 0; lv.shown = true; log({ type: 'start', pid: p.id }); });
   return true;
 }
 
@@ -2180,6 +2211,7 @@ function placeBid(tid, amt, o = {}) {
   commit(() => {
     if (lv.phase === 'ready') { lv.phase = 'bidding'; lv.startedAt = NOW(); log({ type: 'start', pid: p.id }); }
     lv.call = 0;
+    lv.shown = true;
     const e = log({ type: 'bid', pid: p.id, tid, amt, note: o.note || '' });
     lv.bids.push({ tid, amt, t: NOW(), lid: e.id });
     lv.jump = null;
@@ -2960,7 +2992,9 @@ function bidHTML(p) {
       ${R.jumps.map(j => `<button class="jump ${lv.jump === j ? 'on' : ''}" data-act="jump" data-l="${j}" ${l ? '' : 'disabled'}>+ ${money(j)}</button>`).join('')}
       <button class="jump" data-act="custom">CUSTOM <kbd>C</kbd></button>
     </div>`;
-  const start = `<div class="bp-start">${hiddenBlock
+  const start = `<div class="bp-start">${lv.shown === false
+    ? `<button class="btn gold lg" data-act="show-proj">📽 SHOW PLAYER ON PROJECTOR <kbd>Enter</kbd></button><p>The projector is still showing the last result. This player stays hidden there until you show them (tapping a team to bid shows them too).</p>`
+    : hiddenBlock
     ? `<button class="btn purple lg" data-act="reveal">REVEAL PLAYER 🔥 <kbd>⇧M</kbd></button><p>Bidding opens as soon as the player is revealed.</p>`
     : `<button class="btn green lg" data-act="start">▶ START AUCTION <kbd>Enter</kbd></button><p>Or just tap the team that opens the bidding at ${money(lotBase(p))}.</p>`}</div>`;
   return `<div class="bp ${ready ? 'ready' : ''}">
@@ -3513,7 +3547,7 @@ const KEYS = [
   ['G', 'Going once, going twice, then close the bidding'], ['S', 'SOLD'], ['U', 'UNSOLD'], ['R', 'UNDO the last bid, or the last sale'], ['N', 'Next player'], ['P', 'Previous player'],
   ['M', 'Mystery player on the block: next clue, then reveal'], ['⇧M', 'Reveal the mystery player now'], ['T', 'Right to Match'],
   ['C', 'Custom bid'], ['X', 'Pass: mark teams that are out'], ['A', 'Breaking news alert'], ['V', 'Projector view on this screen'],
-  ['F', 'Full screen'], ['ENTER', 'Start the auction, confirm, or open the bidding'], ['ESC', 'Cancel, close, or hide an alert'], ['?', 'This list'],
+  ['F', 'Full screen'], ['ENTER', 'Start the auction, show the next player on the projector, open the bidding, or confirm'], ['ESC', 'Cancel, close, or hide an alert'], ['?', 'This list'],
 ];
 function openShortcuts() {
   openModal({
@@ -4019,6 +4053,7 @@ const SETUP = {
   sets() {
     return `<section class="card"><h2>Player order <small>How the next player is picked.</small></h2>
         <div class="form-grid">${fld('Players come up', 'rules.order', 'select', { opts: [['random', 'At random from the whole pool'], ['sets', 'Set by set, random inside each set'], ['queue', 'Set by set, in player-number order']] })}</div>
+        <div class="row" style="margin-top:10px">${fld('Keep each new player hidden on the projector until I press Enter (the last sale stays on screen meanwhile)', 'rules.curtain', 'bool')}</div>
         <p style="margin-top:8px">Changing this reshuffles the queue. You can still reorder, add or shuffle players in the control room. Mystery and wild card players always pop in by surprise.</p></section>
       <section class="card"><h2>Auction sets <small>Used by “Set by set” order and for set announcements.</small></h2>
         <div class="row" style="margin-bottom:10px">${fld('Put overseas players in their own set when sets are auto-built', 'rules.setOverseas', 'bool')}</div>
@@ -4173,9 +4208,9 @@ function renderProj() {
     root._built = true;
   }
   const p = lotPlayer(), lv = S.live, l = lead();
-  const sp = p && lv.phase !== 'empty' ? setProgress(p) : null;
+  const sp = p && lv.phase !== 'empty' && !onCurtain() ? setProgress(p) : null;   // the set name would hint at the hidden player
   patch($('#pjTop'), `<span class="ev">${esc(S.event.name || '')}</span>${sp ? `<span class="set">${esc(sp.label)}<span>PLAYER ${sp.idx} / ${sp.total}</span></span>` : ''}${S.started ? '<span class="live">LIVE</span>' : '<span class="live" style="color:var(--gold)">STARTING SOON</span>'}`);
-  patch($('#pjMain'), !p || lv.phase === 'empty' ? projIdle() : projLot(p));
+  patch($('#pjMain'), !p || lv.phase === 'empty' ? projIdle() : onCurtain() ? projCurtain() : projLot(p));
   patch($('#pjFeed'), projFeed());
   const d = D();
   patch($('#pjPurses'), S.teams.map(t => `<div class="pp ${l && l.tid === t.id ? 'lead' : ''}" style="--tc:${esc(t.color)}"><b>${esc(t.short)}</b><span>${money(d.ti[t.id].purse)}</span><small>${d.ti[t.id].count}/${S.rules.maxSquad} PLAYERS</small></div>`).join(''));
@@ -4212,6 +4247,21 @@ function projLot(p) {
       <div class="pj-row"><div class="pj-base">BASE <b>${money(lotBase(p))}</b>${lv.bids.length ? ` · <b>${plural(lv.bids.length, 'BID')}</b>` : ''}${lv.bids.length > 1 ? `<br>PREVIOUS <b>${money(lv.bids[lv.bids.length - 2].amt)}</b> · ${esc(T(lv.bids[lv.bids.length - 2].tid).short)}` : ''}</div><div class="pj-call" id="pjCall"></div></div>
     </section>
   </div>`;
+}
+/* Between players: the last result in big type, and a hidden "next player" card. */
+function projCurtain() {
+  const last = [...S.lots].reverse().find(l => l.result === 'sold' || l.result === 'unsold');
+  const lp = last && P(last.pid), lt = last && last.result === 'sold' && T(last.tid);
+  const next = `<div class="pj-next"><div class="q">?</div><h2>${last ? 'NEXT PLAYER' : 'FIRST PLAYER'}</h2><p>COMING UP…</p></div>`;
+  if (!lp) return `<div class="pj-curtain solo">${next}</div>`;
+  const card = lt
+    ? `<div class="pj-last" style="--tc:${esc(lt.color)}"><div class="tag-s">🔨 SOLD!</div>
+        <div class="who">${photoHTML(lp, 'md')}<div class="nm">${esc(lp.name)}</div></div>
+        <div class="to">SOLD TO</div><div class="team">${logoHTML(lt, 'sm')}<span>${esc(lt.name)}</span></div>
+        <div class="amt">${money(last.amt, { fixed: true })}</div>${last.acq === 'rtm' ? '<div class="rtm">🔁 RIGHT TO MATCH</div>' : ''}</div>`
+    : `<div class="pj-last" style="--tc:var(--red)"><div class="tag-s red">❌ UNSOLD</div>
+        <div class="who">${photoHTML(lp, 'md')}<div class="nm">${esc(publicName(lp))}</div></div><div class="to">NO TEAM BID FOR THIS PLAYER</div></div>`;
+  return `<div class="pj-curtain">${card}${next}</div>`;
 }
 function projIdle() {
   const st = D().st;
@@ -4703,7 +4753,7 @@ function fixAction(kind) {
   renderNow();
 }
 
-const ONCE = new Set(['bid', 'sold', 'sold-confirm', 'unsold', 'unsold-mark', 'unsold-pool-add', 'undo', 'next', 'start', 'start-auction', 'close-call', 'skip', 'rtm-use', 'cb-place', 'sp-pop', 'q-now', 'confirm-ok']);
+const ONCE = new Set(['show-proj', 'bid', 'sold', 'sold-confirm', 'unsold', 'unsold-mark', 'unsold-pool-add', 'undo', 'next', 'start', 'start-auction', 'close-call', 'skip', 'rtm-use', 'cb-place', 'sp-pop', 'q-now', 'confirm-ok']);
 let lastHit = { key: '', t: 0 };
 const ACT = {
   nav: d => nav(d.page),
@@ -4711,6 +4761,7 @@ const ACT = {
   'confirm-ok': () => { if (MODAL && MODAL.onEnter) MODAL.onEnter(); },
   next: () => nextPlayer(),
   start: () => startBidding(),
+  'show-proj': () => showOnProjector(),
   'start-auction': () => startAuction(),
   bid: (d, el, e) => (e && e.shiftKey ? togglePass(d.team) : bidTeam(d.team)),
   jump: d => setJump(+d.l || null),
@@ -4959,7 +5010,7 @@ function onKey(e) {
   }
   switch (k.toLowerCase()) {
     case ' ': spaceBid(); break;
-    case 'enter': if (!S.started) startAuction(); else if (S.live.phase === 'ready') startBidding(); else if (S.live.phase === 'empty' || S.live.phase === 'done') nextPlayer(); break;
+    case 'enter': if (!S.started) startAuction(); else if (S.live.phase === 'ready') startBidding();   // first Enter shows the player on the projector, the next opens bidding else if (S.live.phase === 'empty' || S.live.phase === 'done') nextPlayer(); break;
     case 'g': closeCall(); break;
     case 's': askSold(); break;
     case 'u': openUnsold(); break;

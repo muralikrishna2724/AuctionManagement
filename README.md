@@ -8,6 +8,7 @@ A control room for running a college IPL-style player auction from one laptop. I
 
 - **Real IPL players**: the player pool comes from the [IPL-DATASET](https://github.com/ritesh-ojha/IPL-DATASET), with career stats from IPL 2008–2026 on every player card and on the projector. Ratings, roles, base prices and special-ability tags are calculated from the numbers, with recent seasons counting most. Load any number of them in **Setup → Players**, or import your own list.
 - **Start Auction button**: a new or reset auction waits on a start screen that shows the teams, players, purse, player order and a readiness checklist. Press **▶ START AUCTION** (or `Enter`, or the green button in the top bar) to put “THE AUCTION IS LIVE” on the projector and bring the first player onto the block. Until then, the projector shows “The auction starts soon”.
+- **Next player kept hidden on the projector**: after each sale the projector shows who bought the player (photo, team and price) while the next player stays hidden behind a "Next player coming up" card. Press `Enter` (or **SHOW PLAYER ON PROJECTOR**) to reveal them, and `Enter` again to open the bidding. Turn it off in **Setup → Sets & order**.
 - **Control room**: the player on the block, current bid, one-click team bids, SOLD / UNSOLD / UNDO / PASS / RTM, team purses, the next-players queue and a live feed, all on one screen.
 - **Manual bid close**: there is no countdown timer. The auctioneer closes each player by hand: click the **BIDDING** box (or press `G`) to call *going once*, then *going twice*, then close. Closing sells to the highest bidder, or marks the player unsold if nobody bid. Any new bid reopens the bidding. The projector shows each call.
 - **Random order**: players pop up at random instead of one after another. In **Setup → Sets & order** you can switch to random within each set, or back to the fixed set-by-set order. The 🔀 button in the control room reshuffles the queue. While the order is random, the projector doesn't show who is coming up.
@@ -37,7 +38,7 @@ A control room for running a college IPL-style player auction from one laptop. I
 | `X` | Pass |
 | `A` | Breaking news alert |
 | `V` / `F` | Projector view / full screen |
-| `Enter` | Start the auction, confirm, or open the bidding |
+| `Enter` | Start the auction, show the next player on the projector, open the bidding, or confirm |
 | `Esc` | Cancel |
 
 ## Saving
