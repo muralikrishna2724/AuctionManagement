@@ -4,6 +4,31 @@ A control room for running a college IPL-style player auction from one laptop. I
 
 **Live site: https://auctionmanagement.vercel.app/** (Vercel, redeploys on every push). Or **open `index.html` in Chrome, Edge or Firefox.** New to running the auction? Read the 3-page [Auctioneer's guide (PDF)](docs/Auctioneer-Guide.pdf). It starts with a practice auction: 8 made-up college teams bidding for real IPL players, about 40 players in. Clear it with the **SAMPLE DATA** button, or in **Setup → Backup & reset**.
 
+## Screenshots
+
+A full demo run, step by step: your laptop (control room) and the big screen (projector). All 13 steps are also in one PDF: [Auction-Demo-Screenshots.pdf](docs/Auction-Demo-Screenshots.pdf).
+
+| Control room | Projector |
+| --- | --- |
+| ![Start the auction](docs/screenshots/01-start.png) | ![Player revealed](docs/screenshots/05-projector-player-revealed.png) |
+| ![Going once, going twice](docs/screenshots/07-control-going-twice.png) | ![Who bought the player, next one hidden](docs/screenshots/11-projector-sold-to-next-hidden.png) |
+
+All steps:
+
+1. [Start the auction](docs/screenshots/01-start.png)
+2. [Projector before the start](docs/screenshots/02-projector-starts-soon.png)
+3. [Next player on your screen only](docs/screenshots/03-control-show-player.png)
+4. [Audience waits: player hidden](docs/screenshots/04-projector-first-player-hidden.png)
+5. [Player revealed on the projector](docs/screenshots/05-projector-player-revealed.png)
+6. [Taking bids](docs/screenshots/06-control-bidding.png)
+7. [Going once, going twice](docs/screenshots/07-control-going-twice.png)
+8. [The room sees the call](docs/screenshots/08-projector-going-twice.png)
+9. [Close and confirm the sale](docs/screenshots/09-control-confirm-sale.png)
+10. [SOLD! on the projector](docs/screenshots/10-projector-sold.png)
+11. [Who bought the player, next one hidden](docs/screenshots/11-projector-sold-to-next-hidden.png)
+12. [Mystery and wild card picker](docs/screenshots/12-control-surprise-picker.png)
+13. [Setup: player order](docs/screenshots/13-setup-order.png)
+
 ## What it does
 
 - **Real IPL players**: the player pool comes from the [IPL-DATASET](https://github.com/ritesh-ojha/IPL-DATASET), with career stats from IPL 2008–2026 on every player card and on the projector. Ratings, roles, base prices and special-ability tags are calculated from the numbers, with recent seasons counting most. Load any number of them in **Setup → Players**, or import your own list.
