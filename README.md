@@ -41,6 +41,7 @@ All steps:
 - **Handler control over surprises**: the 🎲 box in the control room shows only the auctioneer who pops in next. Click it to pick a different mystery or wild card player, turn any available player into one, take a fresh random pick, or **pop one in now**. While a surprise player is on the block and nobody has bid yet, the same box swaps them for someone else, and the first player goes back to the surprise pool.
 - **Budget safety**: blocks bids over a team's purse or past its squad, overseas or role limits, and warns about low purses and unmet role minimums.
 - **Right to Match**, with an optional final raise. Teams named after an IPL franchise (for example CSK or Mumbai Indians) get the RTM for that franchise's last players.
+- **Event logo**: upload your college or event logo in **Setup → Event & teams** and it shows on the projector (top bar and the “starts soon” screen). Use a logo you have permission to use.
 - **Projector view**: press `V`, or open the page in a second window with `#projector` at the end of the address.
 - **Corrections**: change a team or price, re-auction, send to the unsold pool, adjust purses, restore an earlier state. Nothing is deleted from the history.
 - **Reports and judging**: team reports, auction statistics, a judging panel out of 100, and fun awards.
