@@ -686,7 +686,7 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .pj-call{flex:none;background:var(--paper);color:var(--navy);border-radius:.6em;padding:.3em .6em;font:900 1.8em/1 var(--f-cond);letter-spacing:.04em;text-align:center;white-space:nowrap}
 .pj-call.open{color:var(--green-2)}
 .pj-call.once{background:#fff3d6;color:#b45309}
-.pj-call.twice{background:var(--red);color:#fff;animation:pulse 1s infinite}
+.pj-call.twice{background:var(--red);color:#fff}
 .pj-call.off{display:none}
 .pj-idle{height:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2em;align-items:center}
 .pj-idle h1{font:4em/.95 var(--f-display)}
@@ -714,6 +714,53 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .pp span{font:800 1.05em/1 var(--f-cond);font-variant-numeric:tabular-nums;white-space:nowrap}
 .pp small{font:600 .7em var(--f-cond);color:var(--muted);letter-spacing:.06em}
 .pp.lead{background:color-mix(in srgb,var(--gold) 18%,rgba(18,26,46,.9))}
+/* ---------- Projector animations ----------
+   Entrances run only when the scene changes (a new player, the curtain, a result), via #pjMain.enter;
+   bid, lead, feed and purse changes add one-shot classes in projAnimate(). */
+.proj{isolation:isolate}
+.proj::after{content:"";position:absolute;inset:-35%;z-index:-1;pointer-events:none;background:radial-gradient(32% 28% at 50% 45%,rgba(251,191,36,.07),transparent 70%),radial-gradient(28% 24% at 30% 60%,rgba(59,130,246,.06),transparent 70%);animation:pjSpot 22s ease-in-out infinite}
+@keyframes pjSpot{0%,100%{transform:translate(-14%,-8%)}50%{transform:translate(14%,8%)}}
+@keyframes pjPhotoIn{from{opacity:0;transform:scale(.55) rotate(-14deg)}60%{opacity:1;transform:scale(1.06) rotate(2deg)}to{opacity:1;transform:none}}
+@keyframes pjUp{from{opacity:0;transform:translateY(.9em)}to{opacity:1;transform:none}}
+@keyframes pjLeft{from{opacity:0;transform:translateX(-1.6em)}to{opacity:1;transform:none}}
+@keyframes pjRight{from{opacity:0;transform:translateX(1.6em)}to{opacity:1;transform:none}}
+@keyframes pjPop{from{opacity:0;transform:scale(.7)}70%{opacity:1;transform:scale(1.08)}to{opacity:1;transform:none}}
+#pjMain.wait > *{opacity:0}
+#pjMain.enter .pj-player .ph{animation:pjPhotoIn .85s cubic-bezier(.2,.8,.2,1) both}
+#pjMain.enter .pj-id{animation:pjUp .5s .15s both}
+#pjMain.enter .pj-name{animation:pjUp .6s .25s both}
+#pjMain.enter .pj-role{animation:pjUp .5s .4s both}
+#pjMain.enter .pj-badges{animation:pjUp .5s .5s both}
+#pjMain.enter .pj-meta{animation:pjUp .5s .6s both}
+#pjMain.enter .pj-tags{animation:pjUp .5s .7s both}
+#pjMain.enter .pj-stats,#pjMain.enter .pj-clues{animation:pjUp .5s .8s both}
+#pjMain.enter .pj-bid{animation:pjRight .7s .3s both}
+#pjMain.enter .pj-last{animation:pjLeft .7s cubic-bezier(.2,.8,.2,1) both}
+#pjMain.enter .pj-last .team{animation:pjPop .6s .55s both}
+#pjMain.enter .pj-last .amt{animation:pjPop .6s .75s both}
+#pjMain.enter .pj-next{animation:pjRight .7s .2s both}
+#pjMain.enter .pj-idle > *{animation:pjUp .6s both}
+#pjMain.enter .pj-idle > *:nth-child(2){animation-delay:.2s}
+@keyframes pjFloat{50%{transform:translateY(-.45em)}}
+.pj-next .q{animation:pjFloat 3.2s ease-in-out infinite,pulse 2s infinite}
+@keyframes pjBreathe{50%{opacity:.45}}
+.pj-next p{animation:pjBreathe 1.8s ease-in-out infinite}
+@keyframes pjBump{0%{transform:scale(1)}30%{transform:scale(1.07);color:var(--gold);text-shadow:0 0 .4em rgba(251,191,36,.55)}100%{transform:none}}
+.pj-amt{transform-origin:left center}
+.pj-amt.bump{animation:pjBump .55s ease}
+@keyframes pjTeamIn{from{opacity:0;transform:translateX(1.2em) scale(.96)}to{opacity:1;transform:none}}
+.pj-team.flash{animation:pjTeamIn .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes ppGlow{50%{box-shadow:0 0 0 .12em var(--gold),0 0 1.2em rgba(251,191,36,.45)}}
+.pp.lead{animation:ppGlow 1.6s ease-in-out infinite}
+@keyframes ppChg{20%{transform:translateY(-.35em);background:rgba(251,191,36,.3)}100%{transform:none}}
+.pp.chg{animation:ppChg 1.3s ease}
+.pj-feed li.new{animation:pjLeft .45s both}
+@keyframes callPop{from{transform:scale(.6);opacity:0}70%{transform:scale(1.12);opacity:1}to{transform:none}}
+.pj-call.once{animation:callPop .45s ease}
+.pj-call.twice{animation:callPop .45s ease,pulse 1s .45s infinite}
+@media (prefers-reduced-motion:reduce){
+  .proj::after,#pjMain.enter *,.pj-next .q,.pj-next p,.pp.lead,.pp.chg,.pj-amt.bump,.pj-team.flash,.pj-feed li.new,.pj-call{animation:none!important}
+}
 .pj-fx{position:absolute;inset:0;z-index:5;display:grid;place-items:center;pointer-events:none;opacity:0;transition:opacity .25s}
 .pj-fx.on{opacity:1}
 .pj-fx .fx{width:100%;height:100%;font-size:1.6em}
@@ -2126,7 +2173,11 @@ function loadLot(pid, how) {
   S.live = Object.assign(emptyLive(), { lotId: uid('lot'), pid, phase: 'ready', revealed: !(p.mystery && !p.revealed), how: how || 'queue',
     shown: how === 'surprise' || S.rules.curtain === false || SIM });   // surprises have their own entrance
   if (p.wild && !S.wildUsed.includes(pid)) { S.wildUsed.push(pid); p.wildAt = NOW(); }
-  if (how !== 'surprise' && p.setId && p.setId !== prevSet) fire('set', { setId: p.setId, pid }, true);
+  // "Now starting set …" only makes sense when players go set by set; with the curtain down it waits for the reveal
+  if (how !== 'surprise' && p.setId && p.setId !== prevSet && S.rules.order !== 'random') {
+    if (S.live.shown === false) S.live.setFx = p.setId;
+    else fire('set', { setId: p.setId, pid }, true);
+  }
 }
 function loadLotNow(pid, how) { commit(() => loadLot(pid, how)); }
 /* Moving on after a result is when a surprise can pop in. */
@@ -2185,7 +2236,10 @@ function loadSurprise(p, kind) {
 const onCurtain = () => S.live.phase === 'ready' && S.live.shown === false;
 function showOnProjector() {
   if (!onCurtain()) return false;
-  commit(() => { S.live.shown = true; });
+  commit(() => {
+    S.live.shown = true;
+    if (S.live.setFx) { fire('set', { setId: S.live.setFx, pid: S.live.pid }); S.live.setFx = null; }
+  });
   SFX.alert();
   return true;
 }
@@ -2212,6 +2266,7 @@ function placeBid(tid, amt, o = {}) {
     if (lv.phase === 'ready') { lv.phase = 'bidding'; lv.startedAt = NOW(); log({ type: 'start', pid: p.id }); }
     lv.call = 0;
     lv.shown = true;
+    lv.setFx = null;
     const e = log({ type: 'bid', pid: p.id, tid, amt, note: o.note || '' });
     lv.bids.push({ tid, amt, t: NOW(), lid: e.id });
     lv.jump = null;
@@ -4215,7 +4270,68 @@ function renderProj() {
   const d = D();
   patch($('#pjPurses'), S.teams.map(t => `<div class="pp ${l && l.tid === t.id ? 'lead' : ''}" style="--tc:${esc(t.color)}"><b>${esc(t.short)}</b><span>${money(d.ti[t.id].purse)}</span><small>${d.ti[t.id].count}/${S.rules.maxSquad} PLAYERS</small></div>`).join(''));
   paintClose();
+  projAnimate();
   runFx($('#pjFx'), true);
+}
+/* One-shot animations for whatever changed since the last projector render. */
+const PJA = { scene: null, amt: null, lead: null, feed: null, purse: {}, t: 0 };
+function projAnimate() {
+  const main = $('#pjMain'); if (!main) return;
+  const lv = S.live, l = lead(), p = lotPlayer();
+  const scene = !p || lv.phase === 'empty' ? 'idle' : onCurtain() ? 'curtain:' + lv.lotId : 'lot:' + lv.lotId + (lv.phase === 'done' ? ':done' : '') + (isHiddenNow(p) ? ':h' : '');
+  const amt = l ? l.amt : null, tid = l ? l.tid : null;
+  if (scene !== PJA.scene) {
+    const first = PJA.scene === null;
+    PJA.scene = scene;
+    if (!first) {
+      // wait for a full-screen effect (SOLD!, wild card…) to finish so the entrance is actually seen
+      clearTimeout(PJA.t);
+      main.classList.remove('enter');
+      main.classList.add('wait');
+      const go = () => {
+        if (fxLeft() > 0) { PJA.t = setTimeout(go, 150); return; }
+        main.classList.remove('wait'); void main.offsetWidth; main.classList.add('enter');
+        countUp(main.querySelectorAll('.pj-stats .ps-row b'), 800);
+        PJA.t = setTimeout(() => main.classList.remove('enter'), 1900);
+      };
+      go();
+    }
+  } else {
+    if (amt !== PJA.amt && amt != null) { const el = $('#pjAmt'); if (el) el.classList.add('bump'); }
+    if (tid && tid !== PJA.lead) { const t = main.querySelector('.pj-team'); if (t) t.classList.add('flash'); }
+  }
+  PJA.amt = amt; PJA.lead = tid;
+  const li = $('#pjFeed li');
+  if (li) { const k = li.textContent; if (PJA.feed !== null && k !== PJA.feed) li.classList.add('new'); PJA.feed = k; }
+  const d = D(), tiles = $$('#pjPurses .pp');
+  S.teams.forEach((t, i) => {
+    const v = d.ti[t.id].purse, was = PJA.purse[t.id];
+    if (was !== undefined && v !== was && tiles[i]) tiles[i].classList.add('chg');
+    PJA.purse[t.id] = v;
+  });
+}
+/* Milliseconds until the current full-screen effect (and any queued one) is over. */
+function fxLeft() {
+  const fx = S.fx;
+  if (!fx || fx.dismissed) return 0;
+  return Math.max(0, fx.at + fxDur(fx) + (fx.then ? fxDur(fx.then) : 0) - Date.now());
+}
+/* Count numbers like "4,598" or "40.3" up from zero, ending on exactly the original text. */
+function countUp(els, ms) {
+  els.forEach(el => {
+    const txt = el.textContent, m = txt.match(/^(\d{1,3}(?:,\d{2,3})*|\d+)(\.\d+)?$/);
+    if (!m) return;
+    const dec = m[2] ? m[2].length - 1 : 0, end = parseFloat(txt.replace(/,/g, '')), t0 = performance.now();
+    const fmt = v => (txt.includes(',') ? v.toLocaleString('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : v.toFixed(dec));
+    const step = now => {
+      if (!el.isConnected) return;
+      const k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = k < 1 ? fmt(end * e) : txt;
+      if (k < 1) requestAnimationFrame(step);
+    };
+    el.textContent = fmt(0);
+    requestAnimationFrame(step);
+  });
 }
 function projLot(p) {
   const lv = S.live, l = lead(), hf = hiddenFields(p), hidden = !!hf.name;
