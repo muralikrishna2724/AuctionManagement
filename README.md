@@ -2,7 +2,7 @@
 
 A control room for running a college IPL-style player auction from one laptop. It is a single HTML file: no server, no install.
 
-**Open `index.html` in Chrome, Edge or Firefox.** New to running the auction? Read the 3-page [Auctioneer's guide (PDF)](docs/Auctioneer-Guide.pdf). It starts with a practice auction: 8 made-up college teams bidding for real IPL players, about 40 players in. Clear it with the **SAMPLE DATA** button, or in **Setup → Backup & reset**.
+**Live site: https://muralikrishna2724.github.io/AuctionManagement/** (GitHub Pages, updates on every push to `main`). Or **open `index.html` in Chrome, Edge or Firefox.** New to running the auction? Read the 3-page [Auctioneer's guide (PDF)](docs/Auctioneer-Guide.pdf). It starts with a practice auction: 8 made-up college teams bidding for real IPL players, about 40 players in. Clear it with the **SAMPLE DATA** button, or in **Setup → Backup & reset**.
 
 ## What it does
 
