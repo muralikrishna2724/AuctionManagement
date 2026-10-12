@@ -31,7 +31,7 @@ All steps:
 
 ## What it does
 
-- **Real IPL players**: the player pool comes from the [IPL-DATASET](https://github.com/ritesh-ojha/IPL-DATASET), with career stats from IPL 2008–2026 on every player card and on the projector. Ratings, roles, base prices and special-ability tags are calculated from the numbers, with recent seasons counting most. Load any number of them in **Setup → Players**, or import your own list.
+- **Real IPL 2026 auction players**: the player pool is the 77 players sold at the real IPL 2026 auction ([IPL Auction Dataset 2026](https://www.kaggle.com/datasets/sunnyyadav754/ipl-auction-dataset-2026)), with each player's base price, capped / uncapped, overseas status and the team and price they went for (shown as an “IPL 2026” badge). Ratings follow the 2026 price and the 10 biggest buys form the marquee set. Players with IPL history also get their role, career stats, photo and special-ability tags from the [IPL-DATASET](https://github.com/ritesh-ojha/IPL-DATASET). Players marked **❓ Check role** have no role in the data; set it on the Players page. Load them in **Setup → Players**, or import your own list.
 - **Start Auction button**: a new or reset auction waits on a start screen that shows the teams, players, purse, player order and a readiness checklist. Press **▶ START AUCTION** (or `Enter`, or the green button in the top bar) to put “THE AUCTION IS LIVE” on the projector and bring the first player onto the block. Until then, the projector shows “The auction starts soon”.
 - **Next player kept hidden on the projector**: after each sale the projector shows who bought the player (photo, team and price) while the next player stays hidden behind a "Next player coming up" card. Press `Enter` (or **SHOW PLAYER ON PROJECTOR**) to reveal them, and `Enter` again to open the bidding. Turn it off in **Setup → Sets & order**.
 - **Control room**: the player on the block, current bid, one-click team bids, SOLD / UNSOLD / UNDO / PASS / RTM, team purses, the next-players queue and a live feed, all on one screen.
@@ -81,7 +81,7 @@ Use a CSV or Excel file with a header row. Recognised columns: Player ID, Name, 
 
 ## Data credits
 
-Player data comes from the [IPL-DATASET](https://github.com/ritesh-ojha/IPL-DATASET) by Ritesh Ojha: the 2024 player details, match line-ups and ball-by-ball data. Stats are aggregated from it; ratings, roles, base prices and tags are calculated by this app. The dataset has no nationality column, so overseas players were marked by name. Player photos load from the image links listed in the dataset; when a link doesn't load, the app looks the player up on Wikipedia instead.
+The auction player list (names, nationality, base price, winning bid, team, capped / uncapped) comes from the [IPL Auction Dataset 2026](https://www.kaggle.com/datasets/sunnyyadav754/ipl-auction-dataset-2026) by Sunny Yadav on Kaggle; check its page for the licence before reusing it. Ratings are calculated from the winning bid. Roles, career stats, photo links and tags for players with IPL history come from the [IPL-DATASET](https://github.com/ritesh-ojha/IPL-DATASET) by Ritesh Ojha (2024 player details, match line-ups and ball-by-ball data). Roles for some newcomers were added by hand; players without one are marked “❓ Check role”.
 
 The dataset is published under the MIT License:
 
