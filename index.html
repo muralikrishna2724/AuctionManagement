@@ -1915,7 +1915,7 @@ function applyRoleSets(rnd) {
   } else {   // no team may take more than one above the plan of a role, so the sets can't run dry for the last teams
     ROLES.forEach(r => { S.rules.roleMax[r] = Math.max(S.rules.roleMin[r] || 0, (pl[r] || 0) + 1); });
   }
-  S.rules.order = 'sets';
+  if (S.rules.order === 'sets' || S.rules.order === 'queue') S.rules.order = 'random';   // players come up at random from the whole list (or the auctioneer picks)
   S.surprise = { since: 0, gap: 0, n: { mystery: 0, wild: 0 } };
   rebuildQueue();
   S.surprise.gap = nextSurpriseGap(rnd || Math.random);
@@ -1930,7 +1930,7 @@ function loadRoleSetsFromSetup() {
   const total = sum(z.map(x => x.size));
   confirmBox({
     title: 'BUILD THE 4 SETS', tone: 'gold', ok: 'BUILD SETS',
-    html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${total} players in 4 sets (${z.map(x => `${x.name.toLowerCase()} ${x.size}`).join(', ')}), including ${pl.mystery} mystery players and ${pl.wild} wild cards that pop in by surprise?</p><p class="muted">Players come up set by set, at random inside each set. ${pl.exact !== false ? `Every team buys exactly ${ROLES.reduce((a, r) => a + (pl[r] || 0), 0)} players: ${ROLE_SETS.map(([r, nm]) => `${pl[r] || 0} ${nm.toLowerCase()}`).join(', ')}.` : `Each team's role limit becomes one above these numbers (${ROLE_SETS.map(([r, nm]) => `${(pl[r] || 0) + 1} ${nm.toLowerCase()}`).join(', ')}), so no team can take so many of one role that others run short.`}</p>`,
+    html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${total} players in 4 sets (${z.map(x => `${x.name.toLowerCase()} ${x.size}`).join(', ')}), including ${pl.mystery} mystery players and ${pl.wild} wild cards that pop in by surprise?</p><p class="muted">Players come up at random from the whole list, or the auctioneer picks each one (✋ I pick above the queue in the control room). ${pl.exact !== false ? `Every team buys exactly ${ROLES.reduce((a, r) => a + (pl[r] || 0), 0)} players: ${ROLE_SETS.map(([r, nm]) => `${pl[r] || 0} ${nm.toLowerCase()}`).join(', ')}.` : `Each team's role limit becomes one above these numbers (${ROLE_SETS.map(([r, nm]) => `${(pl[r] || 0) + 1} ${nm.toLowerCase()}`).join(', ')}), so no team can take so many of one role that others run short.`}</p>`,
     onOk: () => {
       commit(() => applyRoleSets(), { ck: 'Build 4 sets' });
       if (UI.page === 'setup') PAGES.setup.build();
@@ -1968,7 +1968,19 @@ function iplPlayers(o, rnd = Math.random) {
 const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players and wild cards
 
 /* ---------- Sample auction (clearly marked; replace in Setup) ---------- */
-const SAMPLE_V = 8;   // bump to rebuild practice auctions saved by older versions
+const SAMPLE_V = 9;   // bump to rebuild practice auctions saved by older versions
+/* The fixed auction: the 4-set player list (the same 150 players + 9 surprises every time), not started.
+   A fresh browser starts with it, and it stays until the auctioneer changes the players in Setup. */
+function buildFixed() {
+  const s = blankState();
+  s.event = { name: 'College IPL Auction 2026', host: '', date: '' };
+  s.teams = FRANCHISES.map((f, i) => newTeam(i));
+  S = s;
+  applyRoleSets();
+  S.sample = false; S.started = false; S.fixed = true;
+  S.live = emptyLive();
+  return S;
+}
 function buildSample() {
   const s = blankState();
   s.sample = true;
@@ -2361,7 +2373,8 @@ function auctionEta() {
 function nextSurpriseGap(rnd = RNG) {
   const R = S.rules.surprise;
   const left = surpriseLeft('mystery') + surpriseLeft('wild');
-  const q = S.queue.filter(id => { const p = P(id); return queueable(p) && !p.round2; }).length;
+  let q = S.queue.filter(id => { const p = P(id); return queueable(p) && !p.round2; }).length;
+  if (S.teams.length) q = Math.min(q, sum(S.teams.map(t => Math.max(0, S.rules.maxSquad - computeTeam(t).count))));   // spread over the squad places still open
   if (R.spread !== false && left > 0 && q > 0) return Math.max(1, Math.round((q / (left + 1)) * (0.75 + rnd() * 0.5)));
   return Math.round(R.min + rnd() * Math.max(0, R.max - R.min));
 }
@@ -2398,6 +2411,14 @@ function pickSurprise() {
   const wantMystery = RNG() * 100 < S.rules.surprise.mysteryPct;
   let mys = surpriseLeft('mystery') ? surprisePool('mystery') : [];
   let wild = surpriseLeft('wild') && wildTimingOK() ? surprisePool('wild') : [];
+  const tis = S.teams.map(computeTeam), buyable = p => tis.some(ti => couldBuy(ti, p));   // never a surprise nobody can buy
+  mys = mys.filter(buyable); wild = wild.filter(buyable);
+  if (!bySets() && mys.length + wild.length > 1) {   // random order: the role with the fewest open places per waiting surprise goes first
+    const R = S.rules, open = r => sum(tis.map(ti => { const mx = R.roleMax[r]; return Math.max(0, Math.min(R.maxSquad - ti.count, (mx == null || mx === '' ? R.maxSquad : mx) - (ti.roles[r] || 0))); }));
+    const all = mys.concat(wild), ratio = r => open(r) / all.filter(p => p.role === r).length;
+    const best = all.map(p => p.role).sort((x, y) => ratio(x) - ratio(y))[0];
+    mys = mys.filter(p => p.role === best); wild = wild.filter(p => p.role === best);
+  }
   if (bySets()) {   // only this set's (or a waiting earlier set's) surprises, the earliest set first
     const due = setSurprises().map(x => x.p.id), ok = p => due.includes(p.id);
     mys = mys.filter(ok); wild = wild.filter(ok);
@@ -3649,7 +3670,7 @@ function renderQueue() {
       <span class="qa"><button class="icon-btn" data-act="q-now" data-pid="${esc(p.id)}" title="Auction now">▶</button><button class="icon-btn" data-act="q-up" data-pid="${esc(p.id)}" title="Move up"${i === 0 ? ' disabled' : ''}>▲</button><button class="icon-btn" data-act="q-down" data-pid="${esc(p.id)}" title="Move down"${i === q.length - 1 ? ' disabled' : ''}>▼</button><button class="icon-btn" data-act="q-end" data-pid="${esc(p.id)}" title="Skip: move to the end">⏭</button><button class="icon-btn" data-act="q-remove" data-pid="${esc(p.id)}" title="Remove from the queue">✕</button></span></li>`;
   });
   if (q.length > 80) h += `<li class="empty-note">+ ${q.length - 80} more in the queue</li>`;
-  patch($('#cr-queue'), `<header class="ph-head"><h3>NEXT PLAYERS <span>${q.length} in queue${S.rules.order === 'manual' ? ' · ✋ you pick' : S.rules.order !== 'queue' ? ' · 🔀 random' : ''}</span></h3><div class="tools"><button class="mini" data-act="pick-open" title="Pick the next player yourself (K)">🔍 Pick</button><button class="mini" data-act="q-add">+ Add</button><button class="mini" data-act="q-shuffle" title="Shuffle the order of the players in the queue" aria-label="Shuffle the queue">🔀</button><button class="mini" data-act="skip" title="Move the current player to the end of the queue">Skip</button><button class="mini" data-act="q-rebuild" title="Rebuild the order from the auction sets">From sets</button></div></header>
+  patch($('#cr-queue'), `<header class="ph-head"><h3>NEXT PLAYERS <span>${q.length} in queue</span></h3><div class="tools"><button class="mini${S.rules.order === 'manual' ? ' on' : ''}" data-act="order-toggle" title="${S.rules.order === 'manual' ? 'You pick each player (K to pick, N for a random one). Click to let players come up at random.' : 'Players come up at random. Click to pick each player yourself.'}">${S.rules.order === 'manual' ? '✋ I pick' : S.rules.order === 'random' ? '🎲 Random' : S.rules.order === 'sets' ? '🗂 By set' : '#️⃣ In order'}</button><button class="mini" data-act="pick-open" title="Pick the next player yourself (K)">🔍 Pick</button><button class="mini" data-act="q-add">+ Add</button><button class="mini" data-act="q-shuffle" title="Shuffle the order of the players in the queue" aria-label="Shuffle the queue">🔀</button><button class="mini" data-act="skip" title="Move the current player to the end of the queue">Skip</button><button class="mini" data-act="q-rebuild" title="Rebuild the order from the auction sets">From sets</button></div></header>
     <ol class="qlist">${h || '<li class="empty-note">The queue is empty.</li>'}</ol>`);
 }
 
@@ -4585,7 +4606,7 @@ const SETUP = {
         ${(() => { const c = roleSetCheck(z); return `<p class="notice ${c.ok ? 'good' : 'bad'}" style="margin-top:10px">${c.ok ? '✅' : '⚠️'} ${c.ind} Indian players + ${Math.min(c.os, nT * S.rules.maxOverseas)} of the ${c.os} overseas players can be bought (each team takes at most ${S.rules.maxOverseas} overseas): ${c.usable} for the ${c.need} places in ${nT} squads of ${c.per}${c.per < S.rules.maxSquad ? ` (squads can grow to ${S.rules.maxSquad} from the spare players)` : ''}${c.ok ? `, with ${c.usable - c.need} to spare.` : `. That is ${c.need - c.usable} short: add spare players or lower the numbers.`}</p>`; })()}
         ${(() => { const tot = sum(z.map(x => x.size)), sp = pl.secs || 60, min = tot * sp / 60; return `<p class="notice info" style="margin-top:10px">⏱ About <b>${fmtDur(min)}</b> for ${tot} players at ${sp} s each, plus breaks and the unsold round. ${min > 150 ? `To shorten it: every 10 players fewer saves about ${fmtDur(10 * sp / 60)}; keep each player under a minute (call going once / twice early with <kbd>G</kbd>).` : ''}</p>`; })()}
         ${pl.exact !== false ? `<p class="notice info" style="margin-top:10px">Exact squads: building the sets makes every team buy exactly ${perTeam} players, ${ROLE_SETS.map(([r, nm]) => `${pl[r] || 0} ${(pl[r] || 0) === 1 ? ROLE_INFO[r].n.toLowerCase() : nm.toLowerCase()}`).join(', ')} (minimum and maximum squad ${perTeam}, and the same limits per role).</p>` : perTeam < S.rules.minSquad || perTeam > S.rules.maxSquad ? `<p class="notice bad" style="margin-top:10px">${perTeam} players per team in the sets, but squads must have ${S.rules.minSquad} to ${S.rules.maxSquad} players (Auction rules).</p>` : perTeam < S.rules.maxSquad ? `<p class="notice info" style="margin-top:10px">Every team gets ${perTeam} players (the plan); with the spare players and role limits one above the plan, teams can buy up to ${Math.min(S.rules.maxSquad, ROLES.reduce((a, r) => a + (pl[r] || 0) + 1, 0))}.</p>` : ''}${pl.exact === false && ROLES.some(r => (pl[r] || 0) < (S.rules.roleMin[r] || 0)) ? `<p class="notice" style="margin-top:10px">Some roles are below the minimum each team needs (Auction rules → Players per role).</p>` : ''}
-        <div class="row" style="margin-top:12px"><button class="btn green" data-act="sets4-load">🗂 BUILD THE 4 SETS</button><span class="muted">Replaces the current player list. Players then come up set by set, at random inside each set, and each team's limit per role becomes ${pl.exact !== false ? 'exactly' : 'one above'} the numbers here.</span></div></section>`;
+        <div class="row" style="margin-top:12px"><button class="btn green" data-act="sets4-load">🗂 BUILD THE 4 SETS</button><span class="muted">Replaces the current player list. Players then come up at random from the whole list (or you pick each one), and each team's limit per role becomes ${pl.exact !== false ? 'exactly' : 'one above'} the numbers here.</span></div></section>`;
     return sets4 + `<section class="card" style="border-top:6px solid var(--gold)"><h2>🏏 IPL players <small>${IPL.players.length} players: ${n26} from the IPL 2026 auction, ${cnt(x => x.pa)} from the IPL auctions of 2013–2022 and ${cnt(x => x.ip)} more who have played in the IPL since 2013</small></h2>
         <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers): legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Every player is loaded by default; for a shorter auction, lower <b>Players in the main auction</b> and the best rated stay in. Only players from 2013 to 2026 are in the list: everyone sold at an IPL auction in those years or who played an IPL season since 2013. Players with IPL matches get their role, career stats and special-ability tags from the IPL match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players and wild cards are drawn from the same group. To decide yourself, press <b>✅ CHOOSE PLAYERS</b>: set how many players to keep, fill the list with the best rated or at random (by role, source or overseas if you like), and tick or untick anyone.</p>
         <div class="form-grid"><label class="f"><span>Players in the main auction</span><input id="iplMain" type="number" min="10" max="${IPL.players.length}" value="${suggest}"></label>
@@ -4658,7 +4679,7 @@ const SETUP = {
         <p>Browser storage belongs to this browser only. Export a backup before the event, at the break, and at the end, so you can carry on from any laptop.</p>
         <div class="row"><button class="btn gold" data-act="backup-export">EXPORT BACKUP</button><label class="btn ghost" style="position:relative">RESTORE BACKUP<input type="file" accept=".json,application/json" data-ch="backup-file" style="position:absolute;inset:0;opacity:0;cursor:pointer" aria-label="Choose a backup file"></label></div></section>
       <section class="card" style="border-top:6px solid var(--red)"><h2>Reset</h2>
-        <div class="row"><button class="btn line-red" data-act="reset-results">CLEAR RESULTS, KEEP TEAMS & PLAYERS</button><button class="btn line-red" data-act="fresh-start">START FRESH (EMPTY)</button><button class="btn ghost" data-act="load-sample">LOAD THE SAMPLE AUCTION</button></div>
+        <div class="row"><button class="btn line-red" data-act="reset-results">CLEAR RESULTS, KEEP TEAMS & PLAYERS</button><button class="btn line-red" data-act="fresh-start">START FRESH (EMPTY)</button><button class="btn gold" data-act="load-fixed">LOAD THE FIXED AUCTION LIST</button><button class="btn ghost" data-act="load-sample">LOAD THE SAMPLE AUCTION</button></div>
         <p style="margin-top:10px">These replace what is saved in this browser. Export a backup first if you might need the current auction again.</p></section>`;
   },
 };
@@ -4697,6 +4718,13 @@ function freshStart() {
       UI.setupTab = 'event'; nav('setup');
       toast('Fresh start. Add the team owners, rules and players.', 'good');
     },
+  });
+}
+function loadFixed() {
+  confirmBox({
+    title: 'LOAD THE FIXED AUCTION LIST', tone: 'gold', ok: 'LOAD THE LIST',
+    html: '<p>Replace what is saved in this browser with the fixed auction: the 10 franchises and the 4-set player list (150 players + the mystery players and wild cards), not started?</p><p class="muted">Team owners, results and your own player changes are cleared. Export a backup first if you need them.</p>',
+    onOk: () => { S = buildFixed(); CK = []; saveCK(); persist(); nav('control'); toast('Fixed auction list loaded: ' + plural(S.players.length, 'player') + '.', 'good'); },
   });
 }
 function loadSample() {
@@ -5607,6 +5635,11 @@ const ACT = {
   'fresh-start': () => freshStart(),
   'reset-results': () => resetResults(),
   'load-sample': () => loadSample(),
+  'load-fixed': () => loadFixed(),
+  'order-toggle': () => {
+    commit(() => { S.rules.order = S.rules.order === 'manual' ? 'random' : 'manual'; rebuildQueue(); });
+    toast(S.rules.order === 'manual' ? '✋ You pick each player: K to pick, N for a random one.' : '🎲 Players now come up at random.', 'good');
+  },
   'lock-view': () => { $('#lock').hidden = true; },
   'lock-take': async () => {
     bcPost({ type: 'takeover' });
@@ -5929,8 +5962,8 @@ async function boot() {
   }
   const restored = !!(st && Array.isArray(st.players));
   if (restored) S = migrate(st);
-  else S = MODE === 'control' ? buildSample() : blankState();
-  if (restored && S.sample && MODE === 'control' && S.sampleV !== SAMPLE_V) S = buildSample();   // old practice data → new player list
+  else S = MODE === 'control' ? buildFixed() : blankState();
+  if (restored && S.sample && MODE === 'control' && S.sampleV !== SAMPLE_V) S = buildFixed();   // the old practice auction → the fixed auction list
   CK = (await idbGet('ck')) || [];
   for (const [k, v] of await idbEntries('m:')) MEDIA.set(k.slice(2), v);
   if (MODE === 'projector') {
