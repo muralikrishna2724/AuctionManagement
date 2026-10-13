@@ -114,6 +114,7 @@ kbd{font:700 11px/1 var(--f-body);padding:3px 5px;border-radius:5px;background:r
 .btn.line-red{background:transparent;border-color:rgba(229,72,77,.6);color:var(--red)}
 .btn.line-purple{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.55);color:var(--purple)}
 .bp-jumps .jump.fixed{cursor:default}
+.bp-jumps .jump.fixed small{font-size:.8em;opacity:.75;margin-left:4px;text-transform:none}
 .tm-fixed{font-weight:700;padding:8px 2px;color:var(--ink)}
 .tm-fixed.code{font-family:var(--f-cond);letter-spacing:.08em;color:var(--gold-2)}
 .pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
@@ -1864,14 +1865,15 @@ function lotBase(p) {
   if (p.round2 && S.rules.unsoldCut) b = Math.max(5, Math.round(b * (100 - S.rules.unsoldCut) / 100 / 5) * 5);
   return b;
 }
-/* Every bid raises the price by the same fixed step: ₹0.25 Cr. */
-const BID_STEP = cr2l(0.25);
-function autoStep() { return BID_STEP; }
+/* Automatic bid step: +₹0.25 Cr while the bid is below ₹2 Cr, +₹0.50 Cr from ₹2 Cr up
+   (… 1.75 → 2.00 → 2.50 → 3.00 …). The opening bid is always the base price. */
+const STEP_LOW = cr2l(0.25), STEP_HIGH = cr2l(0.5), STEP_FROM = cr2l(2);
+const autoStep = cur => (cur >= STEP_FROM ? STEP_HIGH : STEP_LOW);
 function nextAmount() {
   const p = lotPlayer(); if (!p) return 0;
   const l = lead();
   if (!l) return lotBase(p);
-  return l.amt + BID_STEP;
+  return l.amt + autoStep(l.amt);
 }
 function findChallenger() {
   const b = S.live.bids, l = lead();
@@ -3138,7 +3140,8 @@ function bidHTML(p) {
   const next = nextAmount();
   const ch = findChallenger();
   const amount = l ? l.amt : lotBase(p);
-  const jumps = `<div class="bp-jumps"><span class="jump on fixed" title="Every bid raises the price by ${money(BID_STEP)}">EVERY BID + ${money(BID_STEP)}</span></div>`;
+  const hi = !!l && l.amt >= STEP_FROM;
+  const jumps = `<div class="bp-jumps"><span class="jump fixed ${hi ? '' : 'on'}" title="Each bid below ${money(STEP_FROM)}">AUTO + ${money(STEP_LOW)} <small>below ${money(STEP_FROM)}</small></span><span class="jump fixed ${hi ? 'on' : ''}" title="Each bid from ${money(STEP_FROM)} up">AUTO + ${money(STEP_HIGH)} <small>from ${money(STEP_FROM)}</small></span></div>`;
   const start = `<div class="bp-start">${lv.shown === false
     ? `<button class="btn gold lg" data-act="show-proj">📽 SHOW PLAYER ON PROJECTOR <kbd>Enter</kbd></button><p>The projector is still showing the last result. This player stays hidden there until you show them (tapping a team to bid shows them too).</p>`
     : hiddenBlock
@@ -3659,7 +3662,7 @@ function fireDraft() {
 
 /* ---------- Help & menus ---------- */
 const KEYS = [
-  ['SPACE', 'Next bid (+₹0.25 Cr). In a bidding war the other team comes back in at the next amount'], ['1 – 9, 0', 'Bid for teams 1 to 10'],
+  ['SPACE', 'Next bid (+₹0.25 Cr below ₹2 Cr, +₹0.50 Cr from ₹2 Cr). In a bidding war the other team comes back in at the next amount'], ['1 – 9, 0', 'Bid for teams 1 to 10'],
   ['G', 'Going once, going twice, then close the bidding'], ['S', 'SOLD'], ['U', 'UNSOLD'], ['R', 'UNDO the last bid, or the last sale'], ['N', 'Next player (a random one when you pick players yourself)'], ['K', 'Pick the next player yourself'], ['P', 'Previous player'],
   ['M', 'Mystery player on the block: next clue, then reveal'], ['⇧M', 'Reveal the mystery player now'], ['T', 'Right to Match'],
   ['X', 'Pass: mark teams that are out'], ['A', 'Breaking news alert'], ['V', 'Projector view on this screen'],
@@ -4134,7 +4137,7 @@ const SETUP = {
       </div><div class="row" style="margin-top:12px">${fld('Allow a final raise before RTM is matched (IPL 2025 style)', 'rules.rtmRaise', 'bool')}</div></section>
       <section class="card"><h2>Players per role <small>Minimums trigger warnings; maximums block bids.</small></h2>
         <div class="role-grid"><span></span><b>MIN</b><b>MAX</b>${ROLES.map(r => `<span>${ROLE_INFO[r].ic} ${ROLE_INFO[r].pl}</span><input type="number" min="0" step="1" data-bind="rules.roleMin.${r}" data-t="int" value="${R.roleMin[r] ?? 0}" aria-label="Minimum ${ROLE_INFO[r].pl}"><input type="number" min="0" step="1" data-bind="rules.roleMax.${r}" data-t="int" value="${R.roleMax[r] ?? ''}" aria-label="Maximum ${ROLE_INFO[r].pl}">`).join('')}</div></section>
-      <section class="card"><h2>Bid increment</h2><p>Every bid raises the price by <b>${money(BID_STEP)}</b>: the opening bid is the player's base price, then each team button, <kbd>SPACE</kbd> or number key adds ${money(BID_STEP)}.</p></section>
+      <section class="card"><h2>Bid increment</h2><p>The opening bid is the player's base price. Then each team button, <kbd>SPACE</kbd> or number key adds <b>${money(STEP_LOW)}</b> while the bid is below ${money(STEP_FROM)}, and <b>${money(STEP_HIGH)}</b> once it reaches ${money(STEP_FROM)} (… ₹1.75 Cr → ₹2 Cr → ₹2.5 Cr → ₹3 Cr …).</p></section>
       <section class="card"><h2>Budget safety</h2><div class="form-grid">
         ${fld('Keep money for the minimum squad', 'rules.reserve.mode', 'select', { opts: [['off', 'Off'], ['warn', 'Warn only'], ['block', 'Block the bid']] })}
         ${fld('Money kept per empty slot', 'rules.reserve.perSlot', 'money', { min: 0 })}${fld('Low purse warning below', 'rules.lowPurse', 'money', { min: 0 })}
