@@ -1243,14 +1243,26 @@ const LIBS = {
   autotable: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',
 };
 const libP = {};
-function loadLib(k) {
-  if (!libP[k]) libP[k] = new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = LIBS[k]; s.async = true;
-    s.onload = () => res();
-    s.onerror = () => { delete libP[k]; rej(new Error('offline')); };
-    document.head.appendChild(s);
+/* Keep offline copies of the PDF and Excel libraries (fetched quietly while online, so exports work at the venue). */
+function cacheLibs() {
+  if (typeof fetch === 'undefined' || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+  ['jspdf', 'autotable', 'xlsx'].forEach(async k => {
+    try { if (await idbGet('lib:' + k)) return; const r = await fetch(LIBS[k]); if (r.ok) await idbSet('lib:' + k, await r.text()); } catch (e) {}
   });
+}
+/* Excel and PDF libraries come from the CDN; a copy is kept in IndexedDB, so once loaded online they also work offline. */
+function loadLib(k) {
+  const tag = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.async = true; s.onload = () => res(); s.onerror = () => rej(new Error('offline')); document.head.appendChild(s); });
+  if (!libP[k]) libP[k] = (async () => {
+    let code = null;
+    try { const r = await fetch(LIBS[k]); if (r.ok) { code = await r.text(); idbSet('lib:' + k, code).catch(() => {}); } } catch (e) {}
+    if (!code) code = await idbGet('lib:' + k);
+    if (code) {
+      const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+      try { await tag(url); return; } catch (e) {} finally { URL.revokeObjectURL(url); }
+    }
+    await tag(LIBS[k]);
+  })().catch(e => { delete libP[k]; throw e; });
   return libP[k];
 }
 
@@ -4244,7 +4256,7 @@ function teamCardHTML(t, o = {}) {
   const ti = D().ti[t.id], R = S.rules;
   const comp = [['🏏 Batters', ti.roles.BAT, R.roleMin.BAT], ['🎯 Bowlers', ti.roles.BOWL, R.roleMin.BOWL], ['🔄 All-rounders', ti.roles.AR, R.roleMin.AR], ['🧤 Wicketkeepers', ti.roles.WK, R.roleMin.WK]];
   return `<article class="tcard" style="--tc:${esc(t.color)}">
-    <header>${logoHTML(t, 'md')}<div><h3>${esc(t.name)}</h3><small>${esc(t.owner || '')}</small></div><span class="tc-code">${esc(t.short)}</span></header>
+    <header>${logoHTML(t, 'md')}<div><h3>${esc(t.name)}</h3><small>${esc(t.owner || '')}</small></div><button class="mini" data-act="team-pdf" data-tid="${t.id}" title="Download this team's overview as a PDF (any time; marked provisional until the squad is full)">📄 PDF</button><span class="tc-code">${esc(t.short)}</span></header>
     <div class="tc-kpis">
       <div class="k big"><span>PURSE LEFT</span><b class="${ti.purse < R.lowPurse ? 'low' : ''}">${money(ti.purse)}</b></div>
       <div class="k"><span>PLAYERS</span><b>${ti.count} / ${R.maxSquad}</b></div>
@@ -4446,7 +4458,7 @@ function reportHTML(t) {
   const metric = (l, v) => `<div class="metric"><span>${l}</span><span class="bar"><b style="width:${v}%"></b></span><em>${v}</em></div>`;
   const kpi = (k, v) => `<div class="k"><span>${k}</span><b>${v}</b></div>`;
   return `<article class="card report" style="border-top:6px solid ${esc(t.color)}">
-    <div class="row" style="justify-content:space-between;margin-bottom:14px"><div class="row">${logoHTML(t, 'lg')}<div><h2 style="font:34px/1 var(--f-display);letter-spacing:.02em">${esc(t.name)}</h2><p class="muted" style="margin:4px 0 0">${esc(t.owner || '')}</p></div></div>
+    <div class="row" style="justify-content:space-between;margin-bottom:14px"><div class="row">${logoHTML(t, 'lg')}<div><h2 style="font:34px/1 var(--f-display);letter-spacing:.02em">${esc(t.name)}</h2><p class="muted" style="margin:4px 0 0">${esc(t.owner || '')}</p></div></div><button class="btn ghost sm no-print" data-act="team-pdf" data-tid="${t.id}">📄 TEAM PDF</button>
       <div class="tc-kpis" style="grid-template-columns:repeat(4,auto);gap:8px">${kpi('TOTAL SPENT', money(ti.spent))}${kpi('PURSE REMAINING', money(ti.purse))}${kpi('SQUAD SIZE', ti.count + ' / ' + R.maxSquad)}${kpi('OVERSEAS', ti.overseas)}</div></div>
     <div class="two-col">
       <div class="table-wrap">${ti.squad.length ? `<table class="tbl"><thead><tr><th>Player</th><th>Role</th><th class="r">Price</th></tr></thead><tbody>${ti.squad.slice().sort((a, b) => b.soldPrice - a.soldPrice).map(p => `<tr><td class="pname">${esc(p.name)} ${p.overseas ? '🌎' : ''}${p.mystery ? '🕵️' : ''}${p.wild ? '🃏' : ''}${p.acq === 'rtm' ? ' <small class="muted">RTM</small>' : ''}</td><td>${roleText(p)}</td><td class="r money">${money(p.soldPrice)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">No players bought.</p>'}</div>
@@ -4464,7 +4476,7 @@ PAGES.results = {
   build() {
     $('#pg-results').innerHTML = `<div class="pg">
       <div class="pg-head"><div><h1>Final team reports</h1><p>Squads, budgets and an analysis for every team, plus every export you need after the auction.</p></div>
-        <div class="pg-actions no-print">${window.self === window.top ? '<button class="btn ghost" data-act="print">PRINT</button>' : ''}<button class="btn gold" data-act="export" data-ds="all" data-fmt="pdf">FULL REPORT · PDF</button><button class="btn ghost" data-act="export" data-ds="all" data-fmt="xlsx">EVERYTHING · EXCEL</button></div></div>
+        <div class="pg-actions no-print">${window.self === window.top ? '<button class="btn ghost" data-act="print">PRINT</button>' : ''}<button class="btn gold" data-act="export" data-ds="all" data-fmt="pdf">FULL REPORT · PDF</button><button class="btn gold" data-act="team-pdf" title="Every team's overview in one PDF, one page per team">📄 ALL TEAMS · PDF</button><button class="btn ghost" data-act="export" data-ds="all" data-fmt="xlsx">EVERYTHING · EXCEL</button></div></div>
       <section class="card no-print"><h2>Export <small>CSV works offline. Excel and PDF load a small library the first time and need internet.</small></h2>
         <div class="table-wrap"><table class="tbl export-tbl"><tbody>${EXPORTS.map(([k, l]) => `<tr><td>${l}</td><td><div class="row"><button class="mini" data-act="export" data-ds="${k}" data-fmt="csv">CSV</button><button class="mini" data-act="export" data-ds="${k}" data-fmt="xlsx">EXCEL</button><button class="mini" data-act="export" data-ds="${k}" data-fmt="pdf">PDF</button></div></td></tr>`).join('')}
         <tr><td>Backup of the whole auction (restore it on any laptop)</td><td><div class="row"><button class="mini" data-act="backup-export">EXPORT BACKUP</button></div></td></tr></tbody></table></div></section>
@@ -4535,6 +4547,8 @@ PAGES.judging = {
           const sc = ((S.judging.scores[j.id] || {})[t.id]) || {}, an = D().ti[t.id].an;
           return `<tr><td>${teamBadge(t.id)}</td>${CRIT.map(([k, , m, auto]) => auto ? `<td class="c auto" title="Worked out by the app from the squad, the same for every judge"><b class="auto-v">${autoScore(k, t.id)}</b><span class="hint">auto</span></td>` : `<td class="c"><input class="score-in" type="number" min="0" max="${m}" step="0.5" data-in="score" data-t="${t.id}" data-k="${k}" data-m="${m}" value="${sc[k] ?? ''}" aria-label="${esc(t.name)} ${k}"><span class="hint">hint ${Math.round((an[k] || 0) * m / 10) / 10}</span></td>`).join('')}<td class="total-cell" id="tot-${t.id}">${judgeTotals(j.id, t.id).total}</td></tr>`;
         }).join('') : ''}</tbody></table></div></section>`}
+      <section class="card"><h2>📄 Team overview PDFs <small>Each team's players, prices, composition and scores, as a PDF. Download whenever you like; a squad that isn't full yet is marked provisional.</small></h2>
+        <div class="row" style="flex-wrap:wrap;gap:8px">${S.teams.map(t => `<button class="btn ghost sm" data-act="team-pdf" data-tid="${t.id}">📄 ${esc(t.short)}</button>`).join('')}<button class="btn gold sm" data-act="team-pdf">📄 ALL TEAMS IN ONE PDF</button></div></section>
       <section class="card"><h2>${manualCrit() ? 'Standings <small>Average of the judges who have scored. Ties are for the judges to settle.</small>' : 'Scores &amp; standings <small>Worked out by the app from the squads; they update as players are bought. The judges check them, settle ties and pick the fun awards.</small>'}</h2><div id="standings"></div></section>
       <section class="card"><h2>Fun awards <small>Separate from the judging score. Suggestions come from the auction stats; pick whoever you like.</small></h2><div class="awards" id="awards"></div></section>
     </div>`;
@@ -5639,6 +5653,89 @@ function buildPDF(keys, all, full) {
   return doc;
 }
 
+/* ---------- Team overview PDF: one page per team, any time (a squad that isn't full is marked provisional) ---------- */
+async function teamPDF(tids) {
+  if (!tids.length) return;
+  try {
+    toast('Preparing the team PDF…', 'info');
+    await loadLib('jspdf'); await loadLib('autotable');
+  } catch (e) { return toast('The PDF needs an internet connection the first time; after that it works offline.', 'bad', 6000); }
+  const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), R = S.rules;
+  const rgb = h => { const m = String(h || '#888888').replace('#', '').match(/.{2}/g) || ['88', '88', '88']; return m.slice(0, 3).map(x => parseInt(x, 16)); };
+  const M = l => money(l, { pdf: true, fixed: true }), T0 = s0 => stripEmoji(s0).replace(/[–—]/g, '-').trim();
+  const stand = standings(), rankOf = tid => stand.findIndex(r => r.t.id === tid) + 1;
+  tids.forEach((tid, n) => {
+    const t = T(tid), ti = D().ti[tid], sq = ti.squad.slice().sort((a, b) => b.soldPrice - a.soldPrice), full = ti.count >= R.maxSquad;
+    if (n) doc.addPage();
+    const col = rgb(t.color);
+    doc.setFillColor(...col); doc.rect(0, 0, W, 8, 'F');
+    doc.setFillColor(8, 13, 36); doc.rect(0, 8, W, 78, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.text(T0(t.name), 36, 44);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(200, 206, 224);
+    doc.text(T0([t.owner ? 'Owner: ' + t.owner : '', S.event.name, 'Generated ' + new Date().toLocaleString()].filter(Boolean).join('   ·   ')), 36, 64);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    if (full) { doc.setFillColor(47, 125, 50); } else { doc.setFillColor(201, 146, 14); }
+    const badge = full ? 'SQUAD COMPLETE' : `PROVISIONAL - ${ti.count} OF ${R.maxSquad} PLAYERS`;
+    const bw = doc.getTextWidth(badge) + 18; doc.roundedRect(W - 36 - bw, 30, bw, 20, 4, 4, 'F'); doc.setTextColor(255, 255, 255); doc.text(badge, W - 36 - bw + 9, 44);
+    // key numbers
+    const avgR = sq.length ? Math.round(sum(sq.map(p => p.rating)) / sq.length * 10) / 10 : 0;
+    const kpis = [['SPENT', M(ti.spent)], ['PURSE LEFT', M(ti.purse)], ['PLAYERS', `${ti.count} / ${R.maxSquad}`], ['OVERSEAS', `${ti.overseas} / ${R.maxOverseas}`], ['AVG RATING', sq.length ? String(avgR) : '-'], ['SCORE', sq.length ? `${stand[rankOf(tid) - 1].avg ?? 0} / 100` : '-'], ['RANK', sq.length ? `${rankOf(tid)} of ${S.teams.length}` : '-']];
+    const kw = (W - 72) / kpis.length;
+    kpis.forEach(([l, v], i) => {
+      const x = 36 + i * kw; doc.setFillColor(243, 244, 248); doc.roundedRect(x + 2, 100, kw - 4, 44, 4, 4, 'F');
+      doc.setTextColor(91, 97, 117); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.text(l, x + kw / 2, 114, { align: 'center' });
+      doc.setTextColor(8, 13, 36); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(v, x + kw / 2, 133, { align: 'center' });
+    });
+    let y = 170;
+    const head = txt => { doc.setTextColor(8, 13, 36); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(txt, 36, y); doc.setDrawColor(201, 154, 30); doc.setLineWidth(1.2); doc.line(36, y + 4, W - 36, y + 4); y += 10; };
+    const tbl = (h, body, opts = {}) => {
+      doc.autoTable(Object.assign({ startY: y, head: [h], body: body.map(r => r.map(c => T0(String(c ?? '')))), margin: { left: 36, right: 36 },
+        styles: { fontSize: 8.5, cellPadding: 3.5, textColor: [20, 22, 40] }, headStyles: { fillColor: [8, 13, 36], textColor: [248, 213, 126], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [246, 247, 250] } }, opts));
+      y = doc.lastAutoTable.finalY + 22;
+    };
+    head('SQUAD AND PRICES');
+    const how = p => p.mystery ? 'Mystery ' + (p.mcode || '') : p.wild ? 'Wild card ' + (p.wcode || '') : p.round2 ? 'Unsold round' : 'Auction';
+    const kindOf = p => (p.role === 'BOWL' || p.role === 'AR') ? (p.bowlKind || bowlKindOf(p.bowl) || '') : '';
+    tbl(['#', 'Player', 'Role', 'Rating', 'Base', 'Bought for', 'x base', 'Bats', 'Bowls', 'How', 'Bids'],
+      sq.length ? sq.map((p, i) => [i + 1, p.name + (p.overseas ? ' (overseas)' : ''), ROLE_INFO[p.role].n, p.rating, M(p.base), M(p.soldPrice), p.base ? (Math.round(p.soldPrice / p.base * 10) / 10) + 'x' : '', /left/i.test(p.bat) ? 'Left' : /right/i.test(p.bat) ? 'Right' : '-', [kindOf(p), p.bowl].filter(Boolean).join(' · ') || '-', how(p), p.bidsCount ?? ''])
+        : [['', 'No players bought yet', '', '', '', '', '', '', '', '', '']],
+      { styles: { fontSize: 8, cellPadding: 3, textColor: [20, 22, 40] }, columnStyles: { 0: { cellWidth: 16 }, 1: { fontStyle: 'bold', cellWidth: 112 }, 3: { cellWidth: 34 }, 4: { cellWidth: 50 }, 5: { fontStyle: 'bold', cellWidth: 54 }, 6: { cellWidth: 30 }, 7: { cellWidth: 30 } } });
+    // composition
+    const need = ROLES.map(r => [r, Math.max(0, (R.roleMin[r] || 0) - (ti.roles[r] || 0))]).filter(x => x[1]);
+    head('COMPOSITION');
+    tbl(['Role', 'Bought', 'Needed', 'Players'], ROLE_SETS.map(([r]) => [ROLE_INFO[r].pl, ti.roles[r] || 0, R.roleMin[r] || 0, sq.filter(p => p.role === r).map(p => p.name).join(', ') || '-']),
+      { columnStyles: { 3: { cellWidth: 300 } } });
+    if (need.length) { y -= 14; doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(201, 146, 14); doc.text('Still to buy: ' + need.map(([r, k]) => k + ' ' + (k === 1 ? ROLE_INFO[r].n : ROLE_INFO[r].pl).toLowerCase()).join(', '), 36, y); y += 18; }
+    // scores
+    if (y > H - 230) { doc.addPage(); y = 50; }
+    head(full ? 'JUDGING SCORES' : 'JUDGING SCORES (PROVISIONAL - THE SQUAD IS NOT COMPLETE YET)');
+    const groups = ROLES.map(r => [r, sq.filter(p => p.role === r)]).filter(x => x[1].length).map(([r, g]) => ROLE_INFO[r].pl + ' ' + Math.round(sum(g.map(p => p.rating)) / g.length));
+    const hands = sq.filter(p => p.role !== 'BOWL'), kinds = sq.filter(p => p.role === 'BOWL' || p.role === 'AR').map(kindOf);
+    const fair = sum(sq.map(fairPrice)), paid = sum(sq.map(p => p.soldPrice || 0));
+    const why = {
+      rating: sq.length ? `Average rating ${avgR} (minus 70)` : '-',
+      value: fair ? `Paid ${M(paid)} for a fair price of ${M(Math.round(fair))} (${paid <= fair ? Math.round((fair - paid) / fair * 100) + '% below' : Math.round((paid - fair) / fair * 100) + '% above'})` : '-',
+      combo: groups.length ? 'Role group averages: ' + groups.join(' · ') : '-',
+      batbowl: sq.length ? `Batting options L ${hands.filter(p => /left/i.test(p.bat)).length} / R ${hands.filter(p => /right/i.test(p.bat)).length} · bowling pace ${kinds.filter(k => k === 'pace').length} / spin ${kinds.filter(k => k === 'spin').length} · batting ${ti.an.batting} vs bowling ${ti.an.bowling}` : '-',
+    };
+    tbl(['Criterion', 'Points', 'Why'], CRIT.map(([k, l, m, auto]) => [l, auto ? `${autoScore(k, tid)} / ${m}` : '', why[k] || '']).concat([['Total', `${stand[rankOf(tid) - 1] ? stand[rankOf(tid) - 1].avg ?? 0 : 0} / 100`, sq.length ? `Rank ${rankOf(tid)} of ${S.teams.length}${full ? '' : ' (provisional)'}` : '']]),
+      { columnStyles: { 0: { fontStyle: 'bold', cellWidth: 150 }, 1: { fontStyle: 'bold', cellWidth: 60 } }, didParseCell: d => { if (d.section === 'body' && d.row.index === CRIT.length) { d.cell.styles.fillColor = [255, 243, 207]; d.cell.styles.fontStyle = 'bold'; } } });
+    // buys
+    if (sq.length) {
+      if (y > H - 80) { doc.addPage(); y = 50; }
+      const best = sq.slice().sort((a, b) => fairPrice(b) / Math.max(1, b.soldPrice) - fairPrice(a) / Math.max(1, a.soldPrice))[0];
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 64, 80);
+      doc.text(T0(`Highest buy: ${sq[0].name} ${M(sq[0].soldPrice)}   ·   Lowest buy: ${sq[sq.length - 1].name} ${M(sq[sq.length - 1].soldPrice)}   ·   Best value: ${best.name} (rated ${best.rating}) for ${M(best.soldPrice)}`), 36, y, { maxWidth: W - 72 });
+    }
+  });
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120, 120, 120); doc.text(`${T0(S.event.name || '')} · team overview · page ${i} of ${pages}`, W - 36, H - 18, { align: 'right' }); }
+  const one = tids.length === 1 ? T(tids[0]) : null;
+  saveFile(`${slugify(S.event.name)}-${one ? slugify(one.short) + '-team' : 'all-teams'}-overview.pdf`, doc.output('blob'));
+}
+
 /* ---------- Backup ---------- */
 function exportBackup() {
   const d = new Date();
@@ -5857,6 +5954,7 @@ const ACT = {
   'set-del': d => deleteSet(d.id),
   'set-view': d => { UI.plSet = d.id; UI.plF = 'all'; nav('players'); },
   export: d => exportData(d.ds, d.fmt),
+  'team-pdf': d => teamPDF(d.tid ? [d.tid] : S.teams.map(t => t.id)),
   'backup-export': () => exportBackup(),
   print: () => window.print(),
   'judge-tab': d => { UI.judge = +d.i; saveUI(); PAGES.judging.build(); },
@@ -6135,6 +6233,7 @@ async function boot() {
   else S = MODE === 'control' ? buildFixed() : blankState();
   if (restored && S.sample && MODE === 'control' && S.sampleV !== SAMPLE_V) S = buildFixed();   // the old practice auction → the fixed auction list
   CK = (await idbGet('ck')) || [];
+  if (MODE === 'control') setTimeout(cacheLibs, 6000);
   for (const [k, v] of await idbEntries('m:')) MEDIA.set(k.slice(2), v);
   if (MODE === 'projector') {
     const pr = $('#proj'); pr.hidden = false;
