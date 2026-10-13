@@ -684,6 +684,70 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 @keyframes fxFlip{0%{opacity:0;transform:perspective(40em) rotateY(-540deg) scale(.35)}100%{opacity:1;transform:none}}
 .fx-wild .fx-late .fx-name{animation:fxSlam .55s 3.35s cubic-bezier(.2,1.4,.4,1) both;text-shadow:0 0 .4em rgba(251,146,60,.7)}
 @keyframes fxSlam{from{opacity:0;transform:scale(2.4)}}
+/* ---------- Big-screen extras: fireworks, confetti cannons, floodlights, quake, static, vortex, lightning, the wild card ---------- */
+@keyframes fxQuake{0%,100%{transform:scale(1.05)}10%{transform:scale(1.05) translate(-1.2%,.8%) rotate(-.4deg)}20%{transform:scale(1.05) translate(1.1%,-1%) rotate(.4deg)}30%{transform:scale(1.05) translate(-.9%,-.6%)}40%{transform:scale(1.05) translate(.8%,.9%) rotate(-.2deg)}55%{transform:scale(1.05) translate(-.5%,.3%)}70%{transform:scale(1.05) translate(.3%,-.3%)}}
+.pj-fx .fx-sold{animation:fxQuake .55s calc(var(--sd,0s) + .3s) both}
+.pj-fx .fx-sold .stamp{font-size:2.3em;text-shadow:.04em 0 #ff3d7f,-.04em 0 #3df5ff,0 0 .5em rgba(232,178,58,.8)}
+.pj-fx .fx-sold .fx-amt{font-size:2.6em}
+.fx-wash{background:radial-gradient(circle,var(--tc,#E8B23A) 0,transparent 70%);opacity:0;animation:fxWash 1.1s calc(var(--sd,0s) + .3s) ease-out both}
+@keyframes fxWash{0%{opacity:0}8%{opacity:.75}100%{opacity:0}}
+.fx-fw{position:absolute;width:0;height:0;z-index:-1;pointer-events:none}
+.fx-fw::before{content:"";position:absolute;left:-6vmin;top:-6vmin;width:12vmin;height:12vmin;border-radius:50%;background:radial-gradient(circle,#fff,transparent 65%);opacity:0;animation:fxFwCore .5s var(--d) ease-out both}
+@keyframes fxFwCore{0%{opacity:0;transform:scale(.2)}15%{opacity:1}100%{opacity:0;transform:scale(1.4)}}
+.fx-fw i{position:absolute;width:.4em;height:.4em;margin:-.2em;border-radius:50%;background:var(--c);box-shadow:0 0 .6em var(--c),0 0 1.2em var(--c);opacity:0;animation:fxFwP 1.3s var(--d) cubic-bezier(.1,.8,.3,1) both}
+@keyframes fxFwP{0%{opacity:0;transform:rotate(var(--a)) translateX(0) scale(1.2)}2%{opacity:1}75%{opacity:1}100%{opacity:0;transform:rotate(var(--a)) translateX(var(--r)) translateY(4vmin) scale(.3)}}
+.fx-can i{position:absolute;bottom:-3%;width:var(--w);height:calc(var(--w) * .45);background:var(--c);border-radius:.08em;opacity:0;animation:fxCan var(--t) calc(var(--sd,0s) + .3s + var(--d)) both}
+.fx-can i.l{left:-2%}.fx-can i.r{right:-2%}
+@keyframes fxCan{0%{opacity:0;transform:translate(0,0) rotate(0)}2%{opacity:1;transform:translate(0,0) rotate(0);animation-timing-function:cubic-bezier(.15,.75,.4,1)}45%{opacity:1;transform:translate(calc(var(--vx) * .65),calc(var(--vy) * -1)) rotate(calc(var(--rr) * .5));animation-timing-function:cubic-bezier(.5,0,.85,.5)}100%{opacity:0;transform:translate(var(--vx),25vh) rotate(var(--rr))}}
+.fx-beams{overflow:hidden}
+.fx-beams i{position:absolute;bottom:-12%;width:26vmin;height:150%;margin-left:-13vmin;transform-origin:50% 100%;background:linear-gradient(to top,rgba(255,244,214,.45),rgba(255,244,214,.08) 60%,transparent 85%);clip-path:polygon(44% 100%,56% 100%,100% 0,0 0);opacity:0;animation:fxBeam 1.6s ease-in-out infinite alternate,fxFadeIn .6s var(--sd,0s) forwards}
+.fx-beams i:nth-child(1){left:12%;--a0:-35deg;--a1:20deg}.fx-beams i:nth-child(2){left:88%;--a0:35deg;--a1:-20deg;animation-delay:-.8s,var(--sd,0s)}
+.fx-beams i:nth-child(3){left:50%;--a0:-18deg;--a1:18deg;animation-duration:2.2s,.6s}
+@keyframes fxBeam{from{transform:rotate(var(--a0))}to{transform:rotate(var(--a1))}}
+@keyframes fxFadeTo1{to{opacity:1}}
+.fx-beams i{animation-name:fxBeam,fxFadeTo1}
+/* mystery: TV static, a spinning vortex, purple lightning, a sliced glitching "?" and a heartbeat zoom */
+.fx-staticn{opacity:.13;background:repeating-radial-gradient(circle at 17% 32%,rgba(255,255,255,.9) 0 1px,transparent 1px 3px),repeating-radial-gradient(circle at 73% 61%,rgba(255,255,255,.7) 0 1px,transparent 1px 4px);background-size:7px 7px,11px 11px;animation:fxStatic .18s steps(3) infinite}
+@keyframes fxStatic{0%{background-position:0 0,0 0}33%{background-position:3px 5px,-4px 2px}66%{background-position:-5px 2px,2px -5px}100%{background-position:1px -3px,5px 4px}}
+.fx-vortex{inset:auto;left:50%;top:50%;width:150vmin;height:150vmin;margin:-75vmin 0 0 -75vmin;border-radius:50%;background:repeating-conic-gradient(from 0deg,rgba(124,92,240,.28) 0 10deg,transparent 10deg 30deg);-webkit-mask:radial-gradient(circle,transparent 8%,#000 22%,transparent 62%);mask:radial-gradient(circle,transparent 8%,#000 22%,transparent 62%);animation:fxSpin 5s linear infinite reverse}
+.fx-storm{background:radial-gradient(ellipse at var(--sx,30%) 0,rgba(196,181,253,.9),transparent 60%);opacity:0;animation:fxStorm 3.3s infinite}
+.fx-storm.s2{--sx:75%;animation-delay:1.4s;animation-duration:4.1s}
+@keyframes fxStorm{0%,100%{opacity:0}10%{opacity:.7}11%{opacity:0}13%{opacity:.5}15%{opacity:0}60%{opacity:0}61%{opacity:.35}63%{opacity:0}}
+.pj-fx .fx-mys{animation:fxBeatZoom 1s .3s infinite}
+@keyframes fxBeatZoom{0%,32%,100%{transform:scale(1)}8%{transform:scale(1.025)}24%{transform:scale(1.012)}}
+.fx-mys .ph.mys::before,.fx-mys .ph.mys::after{content:"?";position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;mix-blend-mode:screen;opacity:0;animation:fxSlice 2.3s steps(1) infinite}
+.fx-mys .ph.mys::before{color:#ff3d7f}.fx-mys .ph.mys::after{color:#3df5ff;animation-delay:.12s}
+@keyframes fxSlice{0%,80%,100%{opacity:0;clip-path:none;transform:none}82%{opacity:1;clip-path:inset(15% 0 60% 0);transform:translateX(-.12em)}86%{opacity:1;clip-path:inset(55% 0 20% 0);transform:translateX(.14em)}90%{opacity:1;clip-path:inset(35% 0 40% 0);transform:translateX(-.08em)}94%{opacity:0}}
+/* wild card: a giant spinning card through the countdown that explodes at 3, lightning on every count, rising embers */
+.fx-card{position:absolute;left:50%;top:50%;width:24vmin;height:34vmin;margin:-17vmin 0 0 -12vmin;z-index:-1;border-radius:1.6vmin;background:linear-gradient(145deg,#ffcf6b,#f08a2c 45%,#b4321e);box-shadow:0 0 0 .6vmin #fff,0 0 6vmin rgba(251,146,60,.9);display:grid;place-items:center;font:9vmin/1 var(--f-display);color:#13204a;letter-spacing:.02em;animation:fxCardSpin 3s cubic-bezier(.4,0,.6,1) both,fxCardBoom .45s 3s ease-in forwards;transform-style:preserve-3d}
+.fx-card small{display:block;font:2.6vmin/1 var(--f-cond);letter-spacing:.3em;text-align:center}
+@keyframes fxCardSpin{0%{transform:perspective(80vmin) rotateY(0) scale(.35);opacity:0}10%{opacity:1}100%{transform:perspective(80vmin) rotateY(1440deg) scale(1.05);opacity:1}}
+@keyframes fxCardBoom{to{transform:perspective(80vmin) rotateY(1440deg) scale(3.2);opacity:0;filter:brightness(3) blur(4px)}}
+.cr-fx .fx-card{display:none}
+.fx-bolts svg{position:absolute;top:0;height:100%;width:22%;opacity:0;animation:fxBolt 1s 3 steps(1)}
+.fx-bolts svg.b1{left:4%}.fx-bolts svg.b2{right:4%;transform:scaleX(-1);animation-delay:.12s}
+.fx-bolts path{fill:none;stroke:#fff;stroke-width:2.2;filter:drop-shadow(0 0 6px #fb923c) drop-shadow(0 0 14px #fb923c)}
+@keyframes fxBolt{0%{opacity:1}6%{opacity:0}9%{opacity:.85}14%,100%{opacity:0}}
+.fx-emb span{position:absolute;bottom:-2%;left:var(--x);width:var(--s);height:var(--s);border-radius:50%;background:radial-gradient(circle,#fff6d6,#fb923c 55%,transparent 70%);opacity:0;animation:fxEmber var(--t) var(--d) ease-out infinite}
+@keyframes fxEmber{0%{opacity:0;transform:translate(0,0)}15%{opacity:1}100%{opacity:0;transform:translate(var(--dx),-80vh)}}
+.pj-fx .fx-wild{animation:fxQuake .55s 3s both}
+/* new player: floodlights and camera flashes over the stage, letters dropping in, the base price slamming down */
+.pj-flash{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+.pj-flash i{position:absolute;width:16vmin;height:16vmin;margin:-8vmin;border-radius:50%;background:radial-gradient(circle,#fff,rgba(255,255,255,.4) 25%,transparent 65%);opacity:0;animation:pjCam .22s var(--d) ease-out both}
+@keyframes pjCam{0%{opacity:0;transform:scale(.4)}30%{opacity:.95}100%{opacity:0;transform:scale(1.3)}}
+.pj-flash b{position:absolute;bottom:-15%;width:30vmin;height:160%;margin-left:-15vmin;transform-origin:50% 100%;background:linear-gradient(to top,rgba(255,244,214,.38),rgba(255,244,214,.06) 60%,transparent 85%);clip-path:polygon(44% 100%,56% 100%,100% 0,0 0);opacity:0;animation:pjSweepBeam 1.9s ease-in-out both}
+.pj-flash b.b1{left:8%;--a0:-40deg;--a1:30deg}.pj-flash b.b2{left:92%;--a0:40deg;--a1:-30deg}
+@keyframes pjSweepBeam{0%{opacity:0;transform:rotate(var(--a0))}20%{opacity:1}80%{opacity:1}100%{opacity:0;transform:rotate(var(--a1))}}
+.pj-name .w{display:inline-block;white-space:nowrap}
+.pj-name i{font-style:normal;display:inline-block}
+#pjMain.spot .pj-name{animation:pjGlow 1.6s 1.1s ease-out}
+#pjMain.spot .pj-name i{animation:pjLetter .6s calc(.3s + var(--i) * .045s) cubic-bezier(.2,1.6,.4,1) both}
+@keyframes pjLetter{from{opacity:0;transform:translateY(-1.3em) rotate(-30deg) scale(2)}}
+#pjMain.spot #pjAmt{animation:pjSlam .65s .9s cubic-bezier(.2,1.5,.4,1) both}
+@keyframes pjSlam{from{opacity:0;transform:scale(2.8) rotate(-4deg)}}
+#pjMain.spot .pj-player .ph{animation:pjSpinIn 1s cubic-bezier(.2,.8,.2,1) both,pjRing 1.1s .8s ease-out}
+@keyframes pjSpinIn{from{opacity:0;transform:scale(.2) rotate(-540deg)}70%{opacity:1;transform:scale(1.12) rotate(10deg)}to{opacity:1;transform:none}}
+
 
 @keyframes alertIn{from{transform:translateY(-30%);opacity:0}}
 .fx-set small{font:800 .8em/1 var(--f-cond);letter-spacing:.2em;color:var(--green)}
@@ -976,7 +1040,7 @@ body.mode-proj .app{display:none}
   *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
   .fx-late{opacity:1}
   .cd{display:none}
-  .fx-bg,.fx-ring,#pjMain.spot::after{display:none}
+  .fx-bg,.fx-ring,.fx-fw,.fx-card,#pjMain.spot::after,.pj-flash{display:none}
 }
 
 /* ---------- Print (offline file) ---------- */
@@ -2316,6 +2380,12 @@ function setProgress(p) {
     const kind = p.wild ? 'wild' : 'mystery';
     return { label: kind === 'wild' ? '🃏 SURPRISE — WILD CARD' : '🕵️ SURPRISE — MYSTERY PLAYER', idx: S.surprise.n[kind] || 1, total: surpriseMax(kind), surprise: true };
   }
+  if (S.rules.order === 'random' || S.rules.order === 'manual') {   // no sets on screen: the role and the count through the whole auction
+    const all = S.players.filter(x => x.status !== 'withdrawn');
+    const done = all.filter(x => x.id !== p.id && (x.status === 'sold' || (x.status === 'unsold' && !x.noBuyer))).length;
+    const label = isHiddenNow(p) ? '🕵️ MYSTERY PLAYER' : `${ROLE_INFO[p.role].ic} ${ROLE_INFO[p.role].n.toUpperCase()}`;
+    return { label, idx: done + 1, total: all.length };
+  }
   const s = setOf(p);
   if (!s) return { label: 'UNASSIGNED', idx: 0, total: 0 };
   const members = S.players.filter(x => x.setId === s.id && x.status !== 'withdrawn');
@@ -2511,28 +2581,34 @@ const hasTag = (p, re) => (p.tags || []).some(t => re.test(t));
 function analyse(squad) {
   const n = squad.length;
   const R = S.rules;
-  const top = squad.map(p => p.rating).sort((a, b) => b - a).slice(0, 11);
-  while (top.length < 11) top.push(n ? 45 : 0);
-  const strength = n ? Math.round(sum(top) / 11) : 0;
+  const K = clamp(R.maxSquad || 11, 1, 11);   // the playing squad: 11, or the whole squad when squads are smaller (7)
+  const top = squad.map(p => p.rating).sort((a, b) => b - a).slice(0, K);
+  while (top.length < K) top.push(n ? 45 : 0);
+  const strength = n ? Math.round(sum(top) / K) : 0;
   const w = { BAT: [1, 0.15], WK: [0.9, 0], AR: [0.7, 0.7], BOWL: [0.1, 1] };
   const batPts = sum(squad.map(p => (w[p.role] || [0, 0])[0] * p.rating / 100));
   const bowlPts = sum(squad.map(p => (w[p.role] || [0, 0])[1] * p.rating / 100));
-  const batting = Math.round(clamp(batPts / 6, 0, 1) * 100);
-  const bowling = Math.round(clamp(bowlPts / 5, 0, 1) * 100);
+  const batting = Math.round(clamp(batPts / (6 * K / 11), 0, 1) * 100);
+  const bowling = Math.round(clamp(bowlPts / (5 * K / 11), 0, 1) * 100);
   const ar = squad.filter(p => p.role === 'AR').length;
   const versTags = squad.filter(p => hasTag(p, /versatile/i)).length;
   const versatility = n ? Math.round(clamp((ar / Math.max(n, 6)) / 0.28 * 80 + versTags * 7, 0, 100)) : 0;
   const wks = squad.filter(p => p.role === 'WK').sort((a, b) => b.rating - a.rating);
   const fielders = squad.filter(p => hasTag(p, /field|safe hands/i)).length;
   const wk = Math.round(clamp((wks[0] ? wks[0].rating * 0.8 : 0) + (wks[1] ? 10 : 0) + fielders * 5, 0, 100));
-  const ideal = { BAT: 0.32, BOWL: 0.32, AR: 0.22, WK: 0.14 };
+  const pl = R.plan || {}, per = ROLES.reduce((a, r) => a + (pl[r] || 0), 0);
+  const ideal = pl.exact !== false && per ? Object.fromEntries(ROLES.map(r => [r, (pl[r] || 0) / per])) : { BAT: 0.32, BOWL: 0.32, AR: 0.22, WK: 0.14 };
   let dev = 0, unmet = 0;
   for (const r of ROLES) {
     const c = squad.filter(p => p.role === r).length;
     dev += Math.abs((n ? c / n : 0) - ideal[r]);
     if (c < (R.roleMin[r] || 0)) unmet += (R.roleMin[r] - c);
   }
-  const balance = n ? Math.round(clamp(100 - dev * 110 - unmet * 8, 0, 100)) : 0;
+  // inside the squad: batting as strong as bowling, pace and spin among the bowlers, left- and right-hand batters
+  const attack = squad.filter(p => p.role === 'BOWL' || p.role === 'AR'), kinds = new Set(attack.map(p => p.bowlKind || bowlKindOf(p.bowl)).filter(Boolean));
+  const hands = new Set(squad.filter(p => p.role !== 'BOWL' && p.bat).map(p => /left/i.test(p.bat) ? 'L' : 'R'));
+  const mix = (attack.length >= 2 && kinds.size < 2 ? 10 : 0) + (n >= 3 && hands.size < 2 ? 6 : 0);
+  const balance = n ? Math.round(clamp(100 - dev * 110 - unmet * 8 - Math.abs(batting - bowling) * 0.4 - mix, 0, 100)) : 0;
   const fair = sum(squad.map(fairPrice));
   const paid = sum(squad.map(p => p.soldPrice || 0));
   const value = n && fair ? Math.round(clamp(50 + 100 * (fair - paid) / fair, 0, 100)) : 0;
@@ -4919,12 +4995,18 @@ function drawNextPicker() {
 
 /* ---- 50-projector.js ---- */
 /* ================= Projector view & effects ================= */
+/* The player's name as letters, so they can drop in one by one on the projector. */
+function letterSpans(name) {
+  let i = 0;
+  return String(name || '').split(' ').map(w => `<span class="w">${[...w].map(c => `<i style="--i:${i++}">${esc(c)}</i>`).join('')}</span>`).join(' ');
+}
 function renderProj() {
   const root = $('#proj');
   if (!root || root.hidden) return;
   if (!root._built) {
     root.innerHTML = `<div class="pj-top" id="pjTop"></div><div class="pj-main" id="pjMain"></div>
       <div class="pj-foot"><div class="pj-feed" id="pjFeed"></div><div class="pj-purses" id="pjPurses"></div></div>
+      <div class="pj-flash" id="pjFlash"></div>
       <div class="pj-fx" id="pjFx"></div>
       <div class="pj-hint">${MODE === 'projector' ? 'Press F for full screen' : 'V returns to the control room · F for full screen · shortcuts still work'}</div>`;
     root._built = true;
@@ -4943,6 +5025,14 @@ function renderProj() {
 }
 /* One-shot animations for whatever changed since the last projector render. */
 const PJA = { scene: null, amt: null, lead: null, feed: null, purse: {}, t: 0 };
+/* Floodlights sweep the stage and camera flashes go off as a new player appears. */
+function camFlash() {
+  const el = $('#pjFlash'); if (!el || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  let h = '<b class="b1"></b><b class="b2"></b>';
+  for (let i = 0; i < 9; i++) h += `<i style="left:${rnd(5, 95, 0)}%;top:${rnd(5, 70, 0)}%;--d:${rnd(0.2, 1.6)}s"></i>`;
+  el.innerHTML = h;
+  clearTimeout(el._t); el._t = setTimeout(() => { el.innerHTML = ''; }, 2600);
+}
 function projAnimate() {
   const main = $('#pjMain'); if (!main) return;
   const lv = S.live, l = lead(), p = lotPlayer();
@@ -4960,6 +5050,7 @@ function projAnimate() {
         if (fxLeft() > 0) { PJA.t = setTimeout(go, 150); return; }
         main.classList.remove('wait'); void main.offsetWidth; main.classList.add('enter');
         main.classList.toggle('spot', /^lot:/.test(scene) && !/:(done|h)$/.test(scene));   // a new player in the spotlight
+        if (main.classList.contains('spot')) camFlash();
         countUp(main.querySelectorAll('.pj-stats .ps-row b'), 800);
         PJA.t = setTimeout(() => main.classList.remove('enter', 'spot'), 2200);
       };
@@ -5016,7 +5107,7 @@ function projLot(p) {
     <section class="pj-player">
       <div class="pj-ph-row">${photo}<div class="pj-ident">
         <div class="pj-id">${hidden ? '🕵️ MYSTERY PLAYER · ID ' + esc(p.mcode || '') : (p.wild ? '🃏 WILD CARD · ' : '') + 'PLAYER #' + esc(pnum(p))}</div>
-        <h1 class="pj-name">${hidden ? '<span class="qm">? ? ?</span>' : esc(p.name)}</h1>
+        <h1 class="pj-name">${hidden ? '<span class="qm">? ? ?</span>' : letterSpans(p.name)}</h1>
         <div class="pj-role">${hf.role ? 'ROLE ' + q : roleText(p)}</div>
         <div class="pj-badges">${playerBadges(p, hf, hidden)}</div>
       </div></div>
@@ -5109,10 +5200,34 @@ function confettiHTML(colors, n) {
   for (let i = 0; i < n; i++) h += `<i style="--x:${rnd(0, 100, 1)}%;--dx:${rnd(-14, 14, 1)}vh;--r:${rnd(360, 1260, 0)}deg;--d:${rnd(0, 0.6)}s;--t:${rnd(1.7, 2.8)}s;--w:${rnd(0.3, 0.65)}em;--c:${esc(colors[i % colors.length])}"></i>`;
   return `<div class="fx-bg fx-conf">${h}</div>`;
 }
+function fireworksHTML(n, colors, t0) {
+  let h = '';
+  for (let b = 0; b < n; b++) {
+    const c = colors[b % colors.length], d = (t0 + b * 0.32 + Math.random() * 0.2).toFixed(2) + 's';
+    let ps = '';
+    for (let i = 0; i < 18; i++) ps += `<i style="--a:${Math.round(i * 20 + Math.random() * 10)}deg;--r:${rnd(12, 22, 0)}vmin;--c:${esc(i % 4 ? c : '#ffffff')};--d:${d}"></i>`;
+    h += `<div class="fx-fw" style="left:${rnd(12, 88, 0)}%;top:${rnd(12, 55, 0)}%;--d:${d}">${ps}</div>`;
+  }
+  return h;
+}
+function cannonHTML(n, colors) {
+  let h = '';
+  for (let i = 0; i < n; i++) {
+    const left = i % 2 === 0, vx = (left ? 1 : -1) * +rnd(18, 55, 1);
+    h += `<i class="${left ? 'l' : 'r'}" style="--vx:${vx}vw;--vy:${rnd(55, 95, 0)}vh;--rr:${rnd(-900, 900, 0)}deg;--t:${rnd(1.8, 2.8)}s;--d:${rnd(0, 0.35)}s;--w:${rnd(0.35, 0.7)}em;--c:${esc(colors[i % colors.length])}"></i>`;
+  }
+  return `<div class="fx-bg fx-can">${h}</div>`;
+}
+const BOLT = '<svg viewBox="0 0 40 200" preserveAspectRatio="none"><path d="M24 0 L12 60 L22 64 L8 130 L18 133 L4 200"/></svg>';
 function sparksHTML(n) {
   let h = '';
   for (let i = 0; i < n; i++) h += `<i style="--a:${Math.round(i * 360 / n + Math.random() * 8)}deg;--len:${rnd(28, 52, 0)}vmin;--d:${rnd(0, 0.15)}s"></i>`;
   return `<div class="fx-bg fx-sparks">${h}</div>`;
+}
+function emberHTML(n) {
+  let h = '';
+  for (let i = 0; i < n; i++) h += `<span style="--x:${rnd(0, 100, 1)}%;--s:${rnd(0.3, 0.9)}em;--t:${rnd(2, 4)}s;--d:${rnd(0, 3)}s;--dx:${rnd(-10, 10, 0)}vw"></span>`;
+  return `<div class="fx-bg fx-emb">${h}</div>`;
 }
 function floatHTML(ch, n) {
   let h = '';
@@ -5124,17 +5239,18 @@ function fxHTML(fx, big) {
   const ph = p ? photoHTML(p, big ? 'lg' : 'md') : '';
   switch (fx.kind) {
     case 'sold': return `<div class="fx fx-sold" style="--sd:${d.reveal ? '1.6s' : '0s'};--tc:${esc(t ? t.color : '#fff')}">
-      <div class="fx-bg fx-rays"></div><div class="fx-ring"></div><div class="fx-ring r2"></div>
-      ${confettiHTML([t ? t.color : '#E8B23A', '#E8B23A', '#ffffff', t ? t.color : '#4F91CD', '#F6D27A'], big ? 70 : 32)}
+      <div class="fx-bg fx-rays"></div>${big ? '<div class="fx-bg fx-beams"><i></i><i></i><i></i></div>' : ''}<div class="fx-bg fx-wash"></div><div class="fx-ring"></div><div class="fx-ring r2"></div>
+      ${confettiHTML([t ? t.color : '#E8B23A', '#E8B23A', '#ffffff', t ? t.color : '#4F91CD', '#F6D27A'], big ? 90 : 32)}
+      ${big ? cannonHTML(70, [t ? t.color : '#E8B23A', '#E8B23A', '#ffffff', '#F6D27A']) + fireworksHTML(6, [t ? t.color : '#E8B23A', '#E8B23A', '#7dd3fc', '#f472b6'], (d.reveal ? 1.6 : 0) + 0.5) : ''}
       <div class="fx-bg fx-flash"></div>
       ${d.reveal ? '<div class="fx-k" style="color:var(--purple)">🕵️ THE MYSTERY PLAYER IS…</div>' : ''}
       ${p ? `<div class="fx-name"${d.reveal ? ` data-scramble="${esc(p.name)}"` : ''}>${d.reveal ? '' : esc(p.name)}</div>` : ''}
       <div class="stamp">SOLD!</div>
-      ${t ? `<div class="fx-to">TO ${teamBadge(t.id)}</div>` : ''}<div class="fx-amt">${money(d.amt, { fixed: true })}</div>
+      ${t ? `<div class="fx-to">TO ${teamBadge(t.id)}</div>` : ''}<div class="fx-amt" data-count="${esc(d.amt)}" data-from="${esc(p ? lotBase(p) : 0)}">${money(d.amt, { fixed: true })}</div>
       ${d.acq === 'rtm' ? '<div class="fx-tag">🔁 RIGHT TO MATCH</div>' : ''}</div>`;
     case 'unsold': return `<div class="fx fx-unsold"><div class="stamp red">UNSOLD</div>${p ? `<div class="fx-name">${esc(publicName(p))}</div>` : ''}</div>`;
     case 'wild': return `<div class="fx fx-wild"><div class="fx-bg fx-beat"></div><div class="fx-bg fx-rays"></div>
-      <div class="fx-ring"></div><div class="fx-ring r2"></div>${sparksHTML(big ? 36 : 20)}<div class="fx-bg fx-flash"></div>
+      <div class="fx-ring"></div><div class="fx-ring r2"></div>${sparksHTML(big ? 48 : 20)}${big ? `<div class="fx-card">WILD<small>CARD</small></div><div class="fx-bg fx-bolts"><svg class="b1" viewBox="0 0 40 200" preserveAspectRatio="none"><path d="M24 0 L12 60 L22 64 L8 130 L18 133 L4 200"/></svg><svg class="b2" viewBox="0 0 40 200" preserveAspectRatio="none"><path d="M24 0 L12 60 L22 64 L8 130 L18 133 L4 200"/></svg></div>${emberHTML(30)}${fireworksHTML(4, ['#fb923c', '#fde68a', '#ffffff'], 3.05)}` : ''}<div class="fx-bg fx-flash"></div>
       <div class="fx-k">🃏 WILD CARD ALERT</div><div class="fx-sub">NEW PLAYER ENTERING THE AUCTION!</div>
       <div class="cd"><span>3</span><span>2</span><span>1</span></div>
       <div class="fx-late" style="--d:3s">${ph}<div class="fx-name">${p ? esc(p.name) : ''}</div><div class="fx-meta">${p ? `${roleText(p)} · BASE ${money(lotBase(p))} · RATING ${esc(p.rating)}` : ''}</div></div></div>`;
@@ -5144,7 +5260,7 @@ function fxHTML(fx, big) {
     case 'alert': return `<div class="fx fx-alert tone-${esc(d.tone || 'red')}"><div class="fx-a-title">${esc(d.title)}</div><div class="fx-a-text">“${esc(d.text)}”</div></div>`;
     case 'set': { const s = S.sets.find(x => x.id === d.setId); const n = s ? S.players.filter(x => x.setId === s.id && x.status !== 'withdrawn').length : 0; return `<div class="fx fx-set"><small>NOW STARTING</small><b>${esc(setLabel(s))}</b><span>${plural(n, 'PLAYER')}</span></div>`; }
     case 'award': return `<div class="fx fx-award"><div class="trophy">🏆</div><small>${esc(d.title)}</small><b>${t ? esc(t.name) : ''}</b>${p ? `<span>${esc(p.name)}</span>` : ''}${d.note ? `<p>${esc(d.note)}</p>` : ''}</div>`;
-    case 'mystery': return `<div class="fx fx-reveal fx-mys"><div class="fx-bg fx-fog"></div><div class="fx-bg fx-scan"></div>
+    case 'mystery': return `<div class="fx fx-reveal fx-mys"><div class="fx-bg fx-fog"></div><div class="fx-bg fx-vortex"></div><div class="fx-bg fx-storm"></div><div class="fx-bg fx-storm s2"></div><div class="fx-bg fx-scan"></div><div class="fx-bg fx-staticn"></div>
       ${floatHTML('?', big ? 16 : 8)}<div class="fx-ring"></div><div class="fx-ring r2"></div>
       <div class="fx-k">🕵️ SURPRISE</div><div class="fx-sub">A MYSTERY PLAYER IS ON THE BLOCK!</div>
       <span class="ph ${big ? 'lg' : 'md'} mys">?</span><div class="fx-meta">PLAYER ID ${p ? esc(p.mcode || '') : ''} · BASE ${p ? money(lotBase(p)) : ''} · CLUES COMING UP</div></div>`;
@@ -5170,8 +5286,24 @@ function showFx(el, fx, big, ms, then) {
   el.innerHTML = fxHTML(fx, big);
   el.className = (big ? 'pj-fx' : 'cr-fx') + ' on' + (fx.kind === 'alert' && big ? ' fx-alert-wrap' : '');
   if (fx.kind === 'reveal' || (fx.kind === 'sold' && fx.data && fx.data.reveal)) scramble(el, fx.kind === 'sold' ? 150 : 250);
+  if (fx.kind === 'sold') countMoney(el.querySelector('[data-count]'), (fx.data && fx.data.reveal ? 1600 : 0) + 650, 900);
   clearTimeout(el._t);
   el._t = setTimeout(() => { if (then && S.fx && !S.fx.dismissed) showFx(el, then, big, fxDur(then), null); else hideFx(el); }, ms);
+}
+/* The SOLD price counts up from the base price to the final bid. */
+function countMoney(el, delay, ms) {
+  if (!el || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  const to = +el.dataset.count, from = Math.min(to, +el.dataset.from || 0);
+  if (!(to > from)) return;
+  const t0 = performance.now() + delay;
+  el.textContent = money(from, { fixed: true });
+  const step = now => {
+    if (!el.isConnected) return;
+    const k = clamp((now - t0) / ms, 0, 1), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = money(k < 1 ? Math.round((from + (to - from) * e) / 5) * 5 : to, { fixed: true });
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 function hideFx(el) {
   clearTimeout(el._t);
