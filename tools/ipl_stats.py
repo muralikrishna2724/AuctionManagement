@@ -1,5 +1,5 @@
 """Career IPL stats for every player in the IPL-DATASET match files (ball_by_ball_data.csv, ipl_matches_data.csv,
-players-data-updated.csv, teams_data.csv), in the format the auction's built-in pool uses for `st`.
+players-data-updated.csv, teams_data.csv; data/ipl-dataset in this repo), in the format the auction's built-in pool uses for `st`.
 
     stats, players, last_season = load(folder)
     stats['V Kohli'] -> {'m': ..., 'runs': ..., 'wk': ..., 'from': 2008, 'to': 2026, 'team': ..., 'rm': ...}
@@ -7,20 +7,27 @@ players-data-updated.csv, teams_data.csv), in the format the auction's built-in 
 m counts the matches a player shows up in the ball-by-ball data (batting, bowling or fielding). The r* fields are
 the last two seasons only (rr runs, rb balls faced, rw wickets, rlb legal balls bowled, rrc runs conceded, rm matches).
 """
-import csv, collections
+import csv, collections, gzip, io, os
+
+
+def _open(path):
+    """Open a CSV, or its .csv.gz copy (the repo keeps ball_by_ball_data.csv gzipped)."""
+    if not os.path.exists(path) and os.path.exists(path + '.gz'):
+        return io.TextIOWrapper(gzip.open(path + '.gz'), encoding='utf-8')
+    return open(path, encoding='utf-8')
 
 OUT_KINDS = {'bowled', 'caught', 'lbw', 'caught and bowled', 'stumped', 'hit wicket'}
 CURRENT = {1: 'Royal Challengers Bengaluru'}   # franchises renamed since; teams_data has the old name
 
 
 def load(folder):
-    teams = {int(r['team_id']): r['team_name'] for r in csv.DictReader(open(folder + '/teams_data.csv', encoding='utf-8'))}
+    teams = {int(r['team_id']): r['team_name'] for r in csv.DictReader(_open(folder + '/teams_data.csv'))}
     teams.update(CURRENT)
-    matches = {r['match_id']: r for r in csv.DictReader(open(folder + '/ipl_matches_data.csv', encoding='utf-8'))}
+    matches = {r['match_id']: r for r in csv.DictReader(_open(folder + '/ipl_matches_data.csv'))}
     year = {k: int(r['season'][:4]) for k, r in matches.items()}
     last = max(year.values())
     recent = {last - 1, last}
-    players = list(csv.DictReader(open(folder + '/players-data-updated.csv', encoding='utf-8')))
+    players = list(csv.DictReader(_open(folder + '/players-data-updated.csv')))
     pid = {}
     for p in players:
         pid.setdefault(p['player_id'], p['player_name'])
@@ -32,7 +39,7 @@ def load(folder):
     P = collections.defaultdict(lambda: {'ms': set(), 'inn': set(), 'runs': 0, 'bf': 0, 'outs': 0, 'inr': collections.Counter(),
                                           'f4': 0, 's6': 0, 'balls': 0, 'rc': 0, 'wk': 0, 'fig': collections.defaultdict(lambda: [0, 0]),
                                           'ct': 0, 'stp': 0, 'seen': {}, 'teams': set(), 'rr': 0, 'rb': 0, 'rw': 0, 'rlb': 0, 'rrc': 0, 'rms': set()})
-    for b in csv.DictReader(open(folder + '/ball_by_ball_data.csv', encoding='utf-8')):
+    for b in csv.DictReader(_open(folder + '/ball_by_ball_data.csv')):
         mid = b['match_id']
         if mid not in year: continue
         y, rec, sup = year[mid], year[mid] in recent, b['is_super_over'] == 'True'

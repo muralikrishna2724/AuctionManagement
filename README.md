@@ -81,6 +81,9 @@ Use a CSV or Excel file with a header row. Recognised columns: Player ID, Name, 
 
 ## Data credits
 
+All the source datasets are in [`data/`](data/), with [`data/player-pool.csv`](data/player-pool.csv) (the whole 905-player pool as a spreadsheet you can edit and import back) and the steps to rebuild the pool.
+
+
 The auction player list (names, nationality, base price, winning bid, team, capped / uncapped) comes from the [IPL Auction Dataset 2026](https://www.kaggle.com/datasets/sunnyyadav754/ipl-auction-dataset-2026) by Sunny Yadav on Kaggle; check its page for the licence before reusing it. Ratings are calculated from the winning bid. Roles, career stats, photo links and tags for players with IPL history come from the [IPL-DATASET](https://github.com/ritesh-ojha/IPL-DATASET) by Ritesh Ojha (2024 player details, match line-ups and ball-by-ball data). The players from the IPL auctions of 2013–2022 come from the player list in an EDA notebook of the IPL Player Auction Dataset (from start to now) on Kaggle; that notebook only keeps the names, so their roles, overseas status and ratings come from the IPL-DATASET where they appear and were otherwise added by hand (`tools/add_past_players.py`). Career stats, batting hand, bowling style and roles for players without them, and the 339 other IPL players, come from the IPL-DATASET match files (ball-by-ball data for 2008–2026, `tools/ipl_stats.py` and `tools/add_ipl_players.py`); their ratings are worked out from career runs, wickets, strike rate, economy and matches played, and their overseas status was added by hand. Roles for some 2026 newcomers were also added by hand; players without a confirmed role are marked “❓ Check role”.
 
 The dataset is published under the MIT License:

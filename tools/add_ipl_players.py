@@ -1,7 +1,7 @@
 """Fill in and extend the built-in pool from the IPL-DATASET match files (2008-2026 ball-by-ball data).
 
-Usage: python3 tools/add_ipl_players.py <folder with ball_by_ball_data.csv, ipl_matches_data.csv,
-                                         players-data-updated.csv, teams_data.csv> <html with the IPL-DATASET pool> index.html
+Usage: python3 tools/add_ipl_players.py data/ipl-dataset <html with the IPL-DATASET pool> index.html
+(the folder holds ball_by_ball_data.csv[.gz], ipl_matches_data.csv, players-data-updated.csv and teams_data.csv)
 
 1. Players in the pool without career stats (IPL 2026 newcomers and the 2013-2022 auction players typed in by hand)
    get their stats, batting hand and bowling style from the match data; their role is worked out from the stats.
@@ -183,7 +183,8 @@ ranked = sorted(imp.values())
 rate = lambda v: round(50 + 44 * (sum(1 for x in ranked if x <= v) / len(ranked)) ** 1.6)
 for p in pool:   # 2013-2022 auction players typed in by hand: take the rating from their numbers once they have enough
     if p.get('pa') and p['cid'] == 0 and p['st'] and p['st']['m'] >= 10:
-        p['rt'] = max(p['rt'] - 6, min(p['rt'] + 6, rate(imp[p['sn']]), 68 + p['st']['m']))
+        hand = p.setdefault('rh', p['rt'])   # the typed-in rating, kept so re-runs start from it
+        p['rt'] = max(hand - 6, min(hand + 6, rate(imp[p['sn']]), 68 + p['st']['m']))
 
 old_for = {}
 for o in OLD:   # earlier IPL-DATASET entries, keyed by their name in the match data
