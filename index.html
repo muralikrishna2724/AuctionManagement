@@ -113,6 +113,18 @@ kbd{font:700 11px/1 var(--f-body);padding:3px 5px;border-radius:5px;background:r
 .btn.ghost:hover{background:var(--navy-3)}
 .btn.line-red{background:transparent;border-color:rgba(229,72,77,.6);color:var(--red)}
 .btn.line-purple{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.55);color:var(--purple)}
+.pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
+.pk-bar input[type=search]{flex:1;min-width:220px}
+.pk-n input{width:110px}
+.pk-only{display:flex;gap:6px;align-items:center;font-weight:600}
+.pk-list{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.pk-list tr.pk-on td{background:rgba(201,146,14,.13)}
+.pk-list input[type=checkbox]{width:18px;height:18px;accent-color:var(--gold)}
+.pk-count{margin-right:auto;font-size:15px}
+.pk-count .over{color:var(--orange)}
+.pk-mini{flex-direction:row;align-items:center;gap:6px}
+.pk-mini input{width:64px}
+.cr-pick{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .mini{border:1px solid var(--line-2);background:transparent;border-radius:7px;padding:4px 8px;font:700 12px/1 var(--f-cond);letter-spacing:.08em;text-transform:uppercase;color:var(--sand);white-space:nowrap}
 .mini:hover{background:var(--navy-3)}
 .mini.on{background:var(--sand);color:var(--navy);border-color:var(--sand)}
@@ -1617,7 +1629,7 @@ function iplToPlayer(x, id) {
    at random from that group (higher ratings more likely), so a mystery or wild card can be a star. */
 function iplPlayers(o, rnd = Math.random) {
   const want = Math.max(0, o.mystery) + Math.max(0, o.wild);
-  const pool = IPL.players.slice(0, o.main + want);   // 2026 buys by price, then everyone else by rating
+  const pool = o.list ? o.list.slice() : IPL.players.slice(0, o.main + want);   // a hand-picked list, or 2026 buys by price, then everyone else by rating
   const picks = [];
   while (picks.length < Math.min(want, pool.length - 1)) {
     const left = pool.filter(x => !picks.includes(x));
@@ -2177,12 +2189,13 @@ function shuffle(a) {
   return a;
 }
 /* rules.order: 'random' pops players from the whole pool at random, 'sets' goes set by set
-   in random order inside each set, 'queue' goes set by set in player-number order. */
+   in random order inside each set, 'queue' goes set by set in player-number order, and 'manual'
+   waits for the auctioneer to pick each player (the queue is kept shuffled for random picks). */
 function rebuildQueue() {
   const mode = S.rules.order || 'random';
   const arrange = list => { list.sort((a, b) => orderKey(a) - orderKey(b)); return mode === 'queue' ? list : shuffle(list); };
   const q = [];
-  if (mode === 'random') {
+  if (mode === 'random' || mode === 'manual') {
     const all = S.players.filter(queueable);
     arrange(all.filter(p => !p.round2)).concat(arrange(all.filter(p => p.round2))).forEach(p => q.push(p.id));
     S.queue = q;
@@ -2228,7 +2241,7 @@ function loadLot(pid, how) {
     shown: how === 'surprise' || S.rules.curtain === false || SIM });   // surprises have their own entrance
   if (p.wild && !S.wildUsed.includes(pid)) { S.wildUsed.push(pid); p.wildAt = NOW(); }
   // "Now starting set …" only makes sense when players go set by set; with the curtain down it waits for the reveal
-  if (how !== 'surprise' && p.setId && p.setId !== prevSet && S.rules.order !== 'random') {
+  if (how !== 'surprise' && p.setId && p.setId !== prevSet && S.rules.order !== 'random' && S.rules.order !== 'manual') {
     if (S.live.shown === false) S.live.setFx = p.setId;
     else fire('set', { setId: p.setId, pid }, true);
   }
@@ -2244,6 +2257,7 @@ function advance(afterResult) {
     if (!pick) pick = pickSurprise();
     if (pick) return loadSurprise(pick.p, pick.kind);
   }
+  if (S.rules.order === 'manual') { S.live = emptyLive(); return; }   // the auctioneer picks (K) or asks for a random one (N)
   const next = S.queue[0];
   if (next) loadLot(next, 'queue');
   else S.live = emptyLive();
@@ -2605,6 +2619,7 @@ function nextPlayer() {
   const lv = S.live;
   if (lv.phase === 'bidding' && lv.bids.length) return toast('Bids are open. Press S (sold) or U (unsold) first.', 'warn');
   if ((lv.phase === 'ready' || lv.phase === 'bidding') && lv.pid) return skipCurrent();
+  if (S.rules.order === 'manual') return randomPlayer();
   const q = S.queue.filter(id => queueable(P(id)));
   if (!q.length) {
     if (lv.phase === 'done') commit(() => { S.live = emptyLive(); });
@@ -2953,9 +2968,13 @@ function renderPlayerPanel() {
       ? `<div class="cr-empty"><span class="lbl">On the block</span><h2>Not started</h2>
       <p>The first player pops up at random as soon as you press <b>START AUCTION</b>.</p>
       <button class="btn green lg" data-act="start-auction" ${startBlockers().length ? 'disabled' : ''}>▶ START AUCTION <kbd>Enter</kbd></button></div>`
+      : S.rules.order === 'manual'
+      ? `<div class="cr-empty"><span class="lbl">On the block</span><h2>Your pick</h2>
+      <p>${nx ? `Pick the next player, or let a random one pop up. ${plural(pickable().length, 'player')} waiting.` : 'The queue is empty. Add players from Next players, or start the unsold round.'}</p>
+      <div class="cr-pick"><button class="btn gold lg" data-act="pick-open" ${nx ? '' : 'disabled'}>🔍 PICK A PLAYER <kbd>K</kbd></button><button class="btn ghost lg" data-act="pick-random" ${nx ? '' : 'disabled'}>🎲 RANDOM <kbd>N</kbd></button></div></div>`
       : `<div class="cr-empty"><span class="lbl">On the block</span><h2>No player yet</h2>
       <p>${nx ? `Up next: <b>${esc(publicName(nx))}</b>.` : 'The queue is empty. Add players from Next players, or start the unsold round.'}</p>
-      <button class="btn gold lg" data-act="next" ${nx ? '' : 'disabled'}>LOAD NEXT PLAYER <kbd>N</kbd></button></div>`;
+      <div class="cr-pick"><button class="btn gold lg" data-act="next" ${nx ? '' : 'disabled'}>LOAD NEXT PLAYER <kbd>N</kbd></button><button class="btn ghost" data-act="pick-open" ${nx ? '' : 'disabled'}>🔍 PICK A PLAYER <kbd>K</kbd></button></div></div>`;
   } else h = playerCardHTML(p);
   h += specialButtonsHTML() + ladderHTML();
   patch($('#cr-player'), h);
@@ -3060,7 +3079,7 @@ function renderBidPanel() {
   const lv = S.live, p = lotPlayer();
   let h;
   if (!S.started) h = startScreenHTML();
-  else if (!p || lv.phase === 'empty') h = `<div class="bp"><div class="cr-empty"><span class="lbl">Current bid</span><h2>Waiting for the next player</h2><p>Press <kbd>N</kbd> to bring the next player from the queue onto the block.</p></div></div>`;
+  else if (!p || lv.phase === 'empty') h = `<div class="bp"><div class="cr-empty"><span class="lbl">Current bid</span><h2>Waiting for the next player</h2><p>${S.rules.order === 'manual' ? 'Press <kbd>K</kbd> to pick the next player yourself, or <kbd>N</kbd> for a random one.' : 'Press <kbd>N</kbd> to bring the next player from the queue onto the block, or <kbd>K</kbd> to pick one yourself.'}</p></div></div>`;
   else if (lv.phase === 'done') h = doneHTML(p);
   else h = bidHTML(p);
   patch($('#cr-bid'), h);
@@ -3070,7 +3089,7 @@ function startScreenHTML() {
   const R = S.rules, b = startBlockers();
   const inQ = S.queue.filter(id => queueable(P(id))).length;
   const pool = surprisePool('mystery').length + surprisePool('wild').length;
-  const order = { random: 'Random', sets: 'Random in sets', queue: 'Set order' }[R.order || 'random'];
+  const order = { random: 'Random', sets: 'Random in sets', queue: 'Set order', manual: 'You pick' }[R.order || 'random'];
   const checks = [
     [S.teams.length >= 2, `${plural(S.teams.length, 'team')} ready`, 'no'],
     [inQ > 0, `${plural(inQ, 'player')} in the queue`, 'no'],
@@ -3087,7 +3106,7 @@ function startScreenHTML() {
     </div>
     <ul class="ss-checks">${checks.map(([ok, t, bad]) => `<li class="${ok ? '' : bad}">${ok ? '✅' : bad === 'no' ? '❌' : '⚠️'} ${t}</li>`).join('')}</ul>
     <button class="btn green start-big" data-act="start-auction" ${b.length ? 'disabled' : ''}>▶ START AUCTION <kbd>Enter</kbd></button>
-    <p>${b.length ? esc(b[0]) : 'Starting puts “THE AUCTION IS LIVE” on the projector and brings the first player onto the block. Then tap a team for each bid, press <kbd>G</kbd> to call going once / twice, and <kbd>S</kbd> to sell.'}</p>
+    <p>${b.length ? esc(b[0]) : `Starting puts “THE AUCTION IS LIVE” on the projector and ${R.order === 'manual' ? 'then you pick the first player (or a random one)' : 'brings the first player onto the block'}. Then tap a team for each bid, press <kbd>G</kbd> to call going once / twice, and <kbd>S</kbd> to sell.`}</p>
   </div></div>`;
 }
 function bidHTML(p) {
@@ -3149,7 +3168,7 @@ function doneHTML(p) {
   return `<div class="bp"><div class="bp-done"><span class="lbl">${r.type === 'sold' ? '🔨 SOLD' : '❌ UNSOLD'}</span>
     <div class="big">${r.type === 'sold' ? money(r.amt, { fixed: true }) : esc(p.name)}</div>
     ${r.type === 'sold' ? `<div class="bp-lead">${teamBadge(r.tid)}</div>` : ''}
-    <button class="btn gold lg" data-act="next">NEXT PLAYER <kbd>N</kbd></button></div></div>`;
+    <div class="cr-pick"><button class="btn gold lg" data-act="next">${S.rules.order === 'manual' ? '🎲 RANDOM PLAYER' : 'NEXT PLAYER'} <kbd>N</kbd></button><button class="btn ghost lg" data-act="pick-open">🔍 PICK <kbd>K</kbd></button></div></div></div>`;
 }
 
 /* ---------- Right: teams ---------- */
@@ -3183,7 +3202,7 @@ function renderQueue() {
       <span class="qa"><button class="icon-btn" data-act="q-now" data-pid="${esc(p.id)}" title="Auction now">▶</button><button class="icon-btn" data-act="q-up" data-pid="${esc(p.id)}" title="Move up"${i === 0 ? ' disabled' : ''}>▲</button><button class="icon-btn" data-act="q-down" data-pid="${esc(p.id)}" title="Move down"${i === q.length - 1 ? ' disabled' : ''}>▼</button><button class="icon-btn" data-act="q-end" data-pid="${esc(p.id)}" title="Skip: move to the end">⏭</button><button class="icon-btn" data-act="q-remove" data-pid="${esc(p.id)}" title="Remove from the queue">✕</button></span></li>`;
   });
   if (q.length > 80) h += `<li class="empty-note">+ ${q.length - 80} more in the queue</li>`;
-  patch($('#cr-queue'), `<header class="ph-head"><h3>NEXT PLAYERS <span>${q.length} in queue${S.rules.order !== 'queue' ? ' · 🔀 random' : ''}</span></h3><div class="tools"><button class="mini" data-act="q-add">+ Add</button><button class="mini" data-act="q-shuffle" title="Shuffle the order of the players in the queue" aria-label="Shuffle the queue">🔀</button><button class="mini" data-act="skip" title="Move the current player to the end of the queue">Skip</button><button class="mini" data-act="q-rebuild" title="Rebuild the order from the auction sets">From sets</button></div></header>
+  patch($('#cr-queue'), `<header class="ph-head"><h3>NEXT PLAYERS <span>${q.length} in queue${S.rules.order === 'manual' ? ' · ✋ you pick' : S.rules.order !== 'queue' ? ' · 🔀 random' : ''}</span></h3><div class="tools"><button class="mini" data-act="pick-open" title="Pick the next player yourself (K)">🔍 Pick</button><button class="mini" data-act="q-add">+ Add</button><button class="mini" data-act="q-shuffle" title="Shuffle the order of the players in the queue" aria-label="Shuffle the queue">🔀</button><button class="mini" data-act="skip" title="Move the current player to the end of the queue">Skip</button><button class="mini" data-act="q-rebuild" title="Rebuild the order from the auction sets">From sets</button></div></header>
     <ol class="qlist">${h || '<li class="empty-note">The queue is empty.</li>'}</ol>`);
 }
 
@@ -3655,7 +3674,7 @@ function fireDraft() {
 /* ---------- Help & menus ---------- */
 const KEYS = [
   ['SPACE', 'Next bid. In a bidding war the other team comes back in at the next amount'], ['1 – 9, 0', 'Bid for teams 1 to 10'], ['⇧1 – ⇧5', 'Bid for teams 11 to 15'],
-  ['G', 'Going once, going twice, then close the bidding'], ['S', 'SOLD'], ['U', 'UNSOLD'], ['R', 'UNDO the last bid, or the last sale'], ['N', 'Next player'], ['P', 'Previous player'],
+  ['G', 'Going once, going twice, then close the bidding'], ['S', 'SOLD'], ['U', 'UNSOLD'], ['R', 'UNDO the last bid, or the last sale'], ['N', 'Next player (a random one when you pick players yourself)'], ['K', 'Pick the next player yourself'], ['P', 'Previous player'],
   ['M', 'Mystery player on the block: next clue, then reveal'], ['⇧M', 'Reveal the mystery player now'], ['T', 'Right to Match'],
   ['C', 'Custom bid'], ['X', 'Pass: mark teams that are out'], ['A', 'Breaking news alert'], ['V', 'Projector view on this screen'],
   ['F', 'Full screen'], ['ENTER', 'Start the auction, show the next player on the projector, open the bidding, or confirm'], ['ESC', 'Cancel, close, or hide an alert'], ['?', 'This list'],
@@ -4146,11 +4165,11 @@ const SETUP = {
     const n = S.players.length, by = r => S.players.filter(p => p.role === r).length;
     const suggest = iplSuggest(), cnt = f => IPL.players.filter(f).length, n26 = cnt(x => x.s26);
     return `<section class="card" style="border-top:6px solid var(--gold)"><h2>🏏 IPL players <small>${IPL.players.length} players: ${n26} from the IPL 2026 auction, ${cnt(x => x.pa)} from the IPL auctions of 2013–2022 and ${cnt(x => x.ip)} more who have played in the IPL since 2013</small></h2>
-        <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers): legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Every player is loaded by default; for a shorter auction, lower <b>Players in the main auction</b> and the best rated stay in. Only players from 2013 to 2026 are in the list: everyone sold at an IPL auction in those years or who played an IPL season since 2013. Players with IPL matches get their role, career stats and special-ability tags from the IPL match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players and wild cards are drawn from the same group.</p>
+        <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers): legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Every player is loaded by default; for a shorter auction, lower <b>Players in the main auction</b> and the best rated stay in. Only players from 2013 to 2026 are in the list: everyone sold at an IPL auction in those years or who played an IPL season since 2013. Players with IPL matches get their role, career stats and special-ability tags from the IPL match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players and wild cards are drawn from the same group. To decide yourself, press <b>✅ CHOOSE PLAYERS</b>: set how many players to keep, fill the list with the best rated or at random (by role, source or overseas if you like), and tick or untick anyone.</p>
         <div class="form-grid"><label class="f"><span>Players in the main auction</span><input id="iplMain" type="number" min="10" max="${IPL.players.length}" value="${suggest}"></label>
           <label class="f"><span>Mystery players</span><input id="iplMys" type="number" min="0" max="30" value="8"></label>
           <label class="f"><span>Wild cards</span><input id="iplWild" type="number" min="0" max="30" value="8"></label></div>
-        <div class="row" style="margin-top:12px"><button class="btn gold" data-act="ipl-load">LOAD IPL PLAYERS</button><span class="muted">Replaces the current player list. Teams named after IPL franchises (for example CSK or Mumbai Indians) get the RTM for that franchise's last players.</span></div>
+        <div class="row" style="margin-top:12px"><button class="btn gold" data-act="ipl-load">LOAD IPL PLAYERS</button><button class="btn ghost" data-act="pick-players" title="Choose exactly which players to keep">✅ CHOOSE PLAYERS…</button><span class="muted">Replaces the current player list. Teams named after IPL franchises (for example CSK or Mumbai Indians) get the RTM for that franchise's last players.</span></div>
         <p class="muted" style="margin-top:10px;font-size:13px">Data: <a href="https://www.kaggle.com/datasets/sunnyyadav754/ipl-auction-dataset-2026" target="_blank" rel="noopener">IPL Auction Dataset 2026</a> by Sunny Yadav on Kaggle (the 2026 auction list), the IPL Player Auction Dataset from start to now on Kaggle (the 2013–2022 auction players), and <a href="https://github.com/ritesh-ojha/IPL-DATASET" target="_blank" rel="noopener">IPL-DATASET</a> by Ritesh Ojha, MIT License (the 2008–2026 match data behind the career stats, and photo links).</p></section>
       <section class="card"><h2>Import players <small>CSV or Excel. The first row must be column names.</small></h2>
         <div class="drop"><input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" data-ch="import-file" aria-label="Choose a CSV or Excel file"><b>Choose a CSV or Excel file</b><br>Columns we understand: Player ID, Name, Role, Batting, Bowling, Rating, Base Price, Category, Overseas, Tags, Mystery, Wild Card, Set, RTM Team, Clues, Photo URL.</div>
@@ -4167,9 +4186,9 @@ const SETUP = {
   },
   sets() {
     return `<section class="card"><h2>Player order <small>How the next player is picked.</small></h2>
-        <div class="form-grid">${fld('Players come up', 'rules.order', 'select', { opts: [['random', 'At random from the whole pool'], ['sets', 'Set by set, random inside each set'], ['queue', 'Set by set, in player-number order']] })}</div>
+        <div class="form-grid">${fld('Players come up', 'rules.order', 'select', { opts: [['random', 'At random from the whole pool'], ['sets', 'Set by set, random inside each set'], ['queue', 'Set by set, in player-number order'], ['manual', 'The auctioneer picks each player (🔍 pick or 🎲 random)']] })}</div>
         <div class="row" style="margin-top:10px">${fld('Keep each new player hidden on the projector until I press Enter (the last sale stays on screen meanwhile)', 'rules.curtain', 'bool')}</div>
-        <p style="margin-top:8px">Changing this reshuffles the queue. You can still reorder, add or shuffle players in the control room. Mystery and wild card players always pop in by surprise.</p></section>
+        <p style="margin-top:8px">Changing this reshuffles the queue. In every mode you can also pick the next player yourself (🔍 Pick, or press <kbd>K</kbd>) or bring a random one. With <b>The auctioneer picks each player</b>, the block waits for your pick after every result. Mystery and wild card players always pop in by surprise.</p></section>
       <section class="card"><h2>Auction sets <small>Used by “Set by set” order and for set announcements.</small></h2>
         <div class="row" style="margin-bottom:10px">${fld('Put overseas players in their own set when sets are auto-built', 'rules.setOverseas', 'bool')}</div>
         <div class="row" style="margin-bottom:12px"><button class="btn gold sm" data-act="set-auto">AUTO-BUILD SETS FROM PLAYER DATA</button><button class="btn ghost sm" data-act="set-new">+ NEW CUSTOM SET</button><button class="btn ghost sm" data-act="q-rebuild">REBUILD THE QUEUE FROM SETS</button></div>
@@ -4289,15 +4308,21 @@ function loadSample() {
 function loadIPLFromSetup() {
   const num = (id, lo, hi) => clamp(parseInt(($('#' + id) || {}).value, 10) || 0, lo, hi);
   const mystery = num('iplMys', 0, 30), wild = num('iplWild', 0, 30), main = num('iplMain', 1, Math.max(1, IPL.players.length - mystery - wild));
+  loadIPLList({ main, mystery, wild }, `${main} IPL players for the main auction, plus ${mystery} mystery players and ${wild} wild cards`);
+}
+/* Replace the auction's players with IPL players: the best `main` (o.main) or a hand-picked list (o.list). */
+function loadIPLList(o, what) {
+  const { mystery, wild } = o;
   if (S.players.some(p => p.status === 'sold') || S.live.bids.length) {
     return toast('This auction already has sales. Clear the results first (Backup & reset), then load the dataset.', 'warn', 6000);
   }
+  const total = o.list ? o.list.length : o.main + mystery + wild;
   confirmBox({
     title: 'LOAD IPL PLAYERS', tone: 'gold', ok: 'LOAD PLAYERS',
-    html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${main} IPL players for the main auction, plus ${mystery} mystery players and ${wild} wild cards?</p><p class="muted">Sets are rebuilt by role and the queue starts again from the top.</p>`,
+    html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${what}?</p><p class="muted">Sets are rebuilt by role and the queue starts again from the top.</p>`,
     onOk: () => {
       commit(() => {
-        S.players = iplPlayers({ main, mystery, wild });
+        S.players = iplPlayers(o);
         S.queue = []; S.live = emptyLive(); S.lots = []; S.wildUsed = []; S.sample = false; S.started = false;
         S.surprise = { since: 0, gap: Math.round(S.rules.surprise.min + Math.random() * Math.max(0, S.rules.surprise.max - S.rules.surprise.min)), n: { mystery: 0, wild: 0 } };
         S.sets = S.sets.filter(s => s.kind === 'custom');
@@ -4305,10 +4330,151 @@ function loadIPLFromSetup() {
         rebuildQueue();
         advance();
       }, { ck: 'Load IPL players' });
-      PAGES.setup.build();
-      toast(`${main + mystery + wild} IPL players loaded and sorted into sets.`, 'good');
+      if (UI.page === 'setup') PAGES.setup.build();
+      toast(`${total} IPL players loaded and sorted into sets.`, 'good');
     },
   });
+}
+
+/* ---------- Choose players: build the auction's list from the built-in pool by hand ----------
+   PICK.sel holds indexes into IPL.players; PICK.n is how many players the organiser wants to keep.
+   The ticked names are remembered in this browser (small, so localStorage is fine). */
+const PICK = { sel: new Set(), n: 0 };
+const PK_KEY = 'college-auction:pick';
+(() => {
+  try {
+    const s = JSON.parse(localStorage.getItem(PK_KEY) || 'null');
+    if (!s) return;
+    const at = new Map(IPL.players.map((x, i) => [x.n, i]));
+    (s.sel || []).forEach(n => { if (at.has(n)) PICK.sel.add(at.get(n)); });
+    PICK.n = s.n || 0;
+  } catch (e) { /* nothing remembered */ }
+})();
+function savePick() { try { localStorage.setItem(PK_KEY, JSON.stringify({ n: PICK.n, sel: [...PICK.sel].map(i => IPL.players[i].n) })); } catch (e) {} }
+const pkSrc = x => (x.s26 ? 's26' : x.pa ? 'pa' : 'ip');
+const PK_SRC = { s26: '🏷 IPL 2026', pa: '📜 2013–22', ip: '🏏 IPL' };
+/* Indexes of the pool players that match the picker's filters */
+function pkFilter() {
+  const g = id => ($('#' + id) || {}).value || '';
+  const q = g('pkQ').trim().toLowerCase(), role = g('pkRole'), src = g('pkSrc'), os = g('pkOs'), only = !!($('#pkOnly') || {}).checked;
+  const out = [];
+  IPL.players.forEach((x, i) => {
+    if (role && x.r !== role) return;
+    if (src && pkSrc(x) !== src) return;
+    if (os && (os === 'os') !== !!x.os) return;
+    if (only && !PICK.sel.has(i)) return;
+    if (q && ![x.n, (ROLE_INFO[x.r] || {}).n, x.tg.join(' '), x.s26 ? x.s26.t : '', x.st ? x.st.team : '', x.os ? 'overseas' : 'indian'].join(' ').toLowerCase().includes(q)) return;
+    out.push(i);
+  });
+  return out;
+}
+function openPlayerPicker() {
+  if (!PICK.n) PICK.n = PICK.sel.size || iplSuggest();
+  const opt = (v, l) => `<option value="${v}">${l}</option>`;
+  openModal({
+    id: 'pick', tone: 'gold', title: '✅ CHOOSE THE PLAYERS FOR YOUR AUCTION', wide: 'x', live: drawPlayerPicker,
+    body: `<p>Tick the players to keep from the ${IPL.players.length} in the built-in list, or set how many you want and fill the list with the best rated or at random. The filters also limit what the fill buttons pick from, so you can build the list role by role (for example 40 batters, then 40 bowlers).</p>
+      <div class="pk-bar"><label class="f pk-n"><span>Players to keep</span><input id="pkN" type="number" min="2" max="${IPL.players.length}" value="${PICK.n}" data-in="pk-n"></label>
+        <button class="mini" data-act="pk-fill" data-how="best">⭐ Fill with the best rated</button><button class="mini" data-act="pk-fill" data-how="random">🎲 Fill at random</button>
+        <button class="mini" data-act="pk-all" data-on="1">✓ Tick all matching</button><button class="mini" data-act="pk-all" data-on="0">Untick all matching</button><button class="mini" data-act="pk-clear">Clear all</button></div>
+      <div class="pk-bar"><input type="search" id="pkQ" placeholder="Search name, role, tag or team" data-in="pk-q" aria-label="Search players">
+        <select id="pkRole" data-ch="pk-f" aria-label="Role">${opt('', 'All roles')}${ROLES.map(r => opt(r, ROLE_INFO[r].pl)).join('')}</select>
+        <select id="pkSrc" data-ch="pk-f" aria-label="Where the players come from">${opt('', 'All players')}${opt('s26', 'IPL 2026 auction')}${opt('pa', 'IPL auctions 2013–22')}${opt('ip', 'Other IPL players 2013–26')}</select>
+        <select id="pkOs" data-ch="pk-f" aria-label="Indian or overseas">${opt('', 'Indian and overseas')}${opt('in', 'Indian')}${opt('os', 'Overseas')}</select>
+        <label class="pk-only"><input type="checkbox" id="pkOnly" data-ch="pk-f"> Ticked only</label></div>
+      <div id="pkList" class="pk-list"></div>`,
+    foot: `<span id="pkCount" class="pk-count"></span>
+      <label class="f pk-mini"><span>🕵️ Mystery</span><input id="pkMys" type="number" min="0" max="30" value="8"></label>
+      <label class="f pk-mini"><span>🃏 Wild cards</span><input id="pkWild" type="number" min="0" max="30" value="8"></label>
+      <button class="btn ghost" data-act="modal-close">CLOSE <kbd>Esc</kbd></button><button class="btn gold" data-act="pk-load" id="pkLoad">LOAD TICKED PLAYERS</button>`,
+  });
+  drawPlayerPicker();
+}
+function drawPlayerPicker() {
+  const el = $('#pkList'); if (!el) return;
+  const list = pkFilter(), LIM = 300;
+  const row = i => {
+    const x = IPL.players[i], on = PICK.sel.has(i), s = x.st, ri = ROLE_INFO[x.r] || ROLE_INFO.BAT;
+    const yrs = s && s.from ? (s.from === s.to ? s.from : s.from + '–' + s.to) + ` · ${s.m} m` : '—';
+    return `<tr class="${on ? 'pk-on' : ''}"><td><input type="checkbox" data-ch="pk-tick" data-i="${i}" ${on ? 'checked' : ''} aria-label="Keep ${esc(x.n)}"></td><td class="pname">${esc(x.n)}${x.os ? ' 🌎' : ''}</td><td>${ri.ic} ${esc(ri.n)}</td><td class="r">${x.rt}</td><td class="r money">${money(x.bp)}</td><td><span class="tag">${PK_SRC[pkSrc(x)]}</span></td><td class="muted">${yrs}</td></tr>`;
+  };
+  patch(el, list.length
+    ? `<table class="tbl"><thead><tr><th></th><th>Player</th><th>Role</th><th class="r">Rating</th><th class="r">Base</th><th>From</th><th>IPL seasons</th></tr></thead><tbody>${list.slice(0, LIM).map(row).join('')}</tbody></table>${list.length > LIM ? `<p class="muted" style="margin:8px">Showing ${LIM} of ${list.length} matching players. Search or filter to see the rest; “Tick all matching” covers all ${list.length}.</p>` : ''}`
+    : '<p class="empty-note">No player matches these filters.</p>');
+  pkCount(list.length);
+}
+function pkCount(matching) {
+  const c = $('#pkCount'); if (!c) return;
+  const n = PICK.sel.size, t = PICK.n;
+  if (matching != null) c.dataset.m = matching;
+  const m = c.dataset.m;
+  c.innerHTML = `<b>${n}</b> ticked${t ? ` of <b>${t}</b>` : ''}${t && n !== t ? ` <small class="${n > t ? 'over' : ''}">(${n > t ? n - t + ' over' : t - n + ' to go'})</small>` : t ? ' ✅' : ''}${m != null ? ` <small class="muted">· ${m} matching</small>` : ''}`;
+  const b = $('#pkLoad'); if (b) { b.disabled = n < 2; b.textContent = `LOAD ${n} PLAYERS`; }
+}
+function pkFill(how) {
+  const need = PICK.n - PICK.sel.size;
+  if (need <= 0) return toast(`${PICK.sel.size} players are already ticked. Raise “Players to keep” to add more.`, 'info');
+  const pool = pkFilter().filter(i => !PICK.sel.has(i));
+  if (!pool.length) return toast('Every matching player is already ticked.', 'info');
+  if (how === 'random') for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  else pool.sort((a, b) => IPL.players[b].rt - IPL.players[a].rt || a - b);
+  const add = pool.slice(0, need);
+  add.forEach(i => PICK.sel.add(i));
+  savePick(); drawPlayerPicker();
+  toast(`${add.length} players ticked${add.length < need ? ` (only ${add.length} matched the filters)` : ''}.`, 'good');
+}
+function pkLoad() {
+  const list = [...PICK.sel].sort((a, b) => a - b).map(i => IPL.players[i]);
+  const num = id => clamp(parseInt(($('#' + id) || {}).value, 10) || 0, 0, 30);
+  const mystery = num('pkMys'), wild = num('pkWild');
+  if (list.length < 2) return toast('Tick at least 2 players.', 'warn');
+  if (mystery + wild >= list.length) return toast('Leave some players for the main auction: lower the mystery and wild card numbers.', 'warn');
+  closeModal();
+  loadIPLList({ list, mystery, wild }, `the ${list.length} players you ticked: ${list.length - mystery - wild} for the main auction, plus ${mystery} mystery players and ${wild} wild cards drawn from your list`);
+}
+
+/* ---------- Pick the next player by hand, or let a random one pop (works in every order mode;
+   with "The auctioneer picks each player" the block waits for a pick after every result) ---------- */
+const pickable = () => S.queue.map(id => P(id)).filter(queueable);
+function randomPlayer() {
+  if (!S.started) return startAuction();
+  const lv = S.live;
+  if (lv.phase === 'bidding' && lv.bids.length) return toast('Bids are open. Press S (sold) or U (unsold) first.', 'warn');
+  const q = pickable(), main = q.filter(p => !p.round2), from = main.length ? main : q;
+  if (!from.length) return toast('No players left in the queue. Add players, or start the unsold round from the Unsold pool tab.', 'warn');
+  if (MODAL && MODAL.id === 'pick-next') closeModal();
+  auctionNow(from[Math.floor(Math.random() * from.length)].id);
+}
+function openNextPicker() {
+  if (!S.started) return toast('Start the auction first.', 'info');
+  const opt = (v, l) => `<option value="${v}">${l}</option>`;
+  openModal({
+    id: 'pick-next', tone: 'gold', title: '🔍 PICK THE NEXT PLAYER', wide: true, live: drawNextPicker,
+    body: `<div class="pk-bar"><input type="search" id="npQ" placeholder="Search name, ID, role, tag or set" data-in="np-q" autofocus aria-label="Search players">
+        <select id="npRole" data-ch="np-f" aria-label="Role">${opt('', 'All roles')}${ROLES.map(r => opt(r, ROLE_INFO[r].pl)).join('')}</select>
+        <select id="npSort" data-ch="np-f" aria-label="Sort">${opt('rt', 'Best rated first')}${opt('base', 'Highest base price first')}${opt('name', 'A to Z')}${opt('q', 'Queue order')}</select></div>
+      <p id="npNote"></p><div id="npList" class="pk-list"></div>`,
+    foot: `<button class="btn ghost" data-act="modal-close">CLOSE <kbd>Esc</kbd></button><button class="btn gold" data-act="pick-random">🎲 RANDOM PLAYER</button>`,
+  });
+  drawNextPicker();
+}
+function drawNextPicker() {
+  const el = $('#npList'); if (!el) return;
+  const g = id => ($('#' + id) || {}).value || '';
+  const q = g('npQ'), role = g('npRole'), sort = g('npSort') || 'rt';
+  const all = pickable();
+  const list = all.filter(p => !role || p.role === role).filter(psearch(q));
+  if (sort === 'rt') list.sort((a, b) => b.rating - a.rating);
+  else if (sort === 'base') list.sort((a, b) => lotBase(b) - lotBase(a));
+  else if (sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
+  const cur = lotPlayer(), lv = S.live, note = $('#npNote');
+  if (note) note.innerHTML = cur && lv.phase !== 'done' && lv.phase !== 'empty'
+    ? `On the block now: <b>${esc(publicName(cur))}</b>${lv.bids.length ? '. Bids are open, so sell or mark unsold first.' : '. Picking another player puts them back in the queue.'}`
+    : `${plural(all.length, 'player')} waiting. Pick one to bring onto the block${S.rules.curtain === false ? '' : ' (they stay hidden on the projector until you press Enter)'}.`;
+  const LIM = 200, setName = p => (S.sets.find(x => x.id === p.setId) || {}).name || '';
+  patch(el, list.length
+    ? `<table class="tbl"><thead><tr><th>ID</th><th>Player</th><th>Role</th><th class="r">Rating</th><th class="r">Base</th><th>Set</th><th></th></tr></thead><tbody>${list.slice(0, LIM).map(p => `<tr><td class="pid">#${esc(pnum(p))}</td><td class="pname">${esc(p.name)}${p.overseas ? ' 🌎' : ''}${p.round2 ? ' <small class="muted">♻ unsold round</small>' : ''}</td><td>${roleText(p)}</td><td class="r">${esc(p.rating)}</td><td class="r money">${money(lotBase(p))}</td><td class="muted">${esc(setName(p))}</td><td class="r"><button class="mini on" data-act="pick-now" data-pid="${esc(p.id)}">▶ On the block</button></td></tr>`).join('')}</tbody></table>${list.length > LIM ? `<p class="muted" style="margin:8px">Showing ${LIM} of ${list.length}. Search to find the rest.</p>` : ''}`
+    : `<p class="empty-note">${q || role ? 'No waiting player matches.' : 'No players left in the queue.'}</p>`);
 }
 
 /* ---- 50-projector.js ---- */
@@ -4933,7 +5099,7 @@ function fixAction(kind) {
   renderNow();
 }
 
-const ONCE = new Set(['show-proj', 'bid', 'sold', 'sold-confirm', 'unsold', 'unsold-mark', 'unsold-pool-add', 'undo', 'next', 'start', 'start-auction', 'close-call', 'skip', 'rtm-use', 'cb-place', 'sp-pop', 'q-now', 'confirm-ok']);
+const ONCE = new Set(['pick-random', 'pick-now', 'show-proj', 'bid', 'sold', 'sold-confirm', 'unsold', 'unsold-mark', 'unsold-pool-add', 'undo', 'next', 'start', 'start-auction', 'close-call', 'skip', 'rtm-use', 'cb-place', 'sp-pop', 'q-now', 'confirm-ok']);
 let lastHit = { key: '', t: 0 };
 const ACT = {
   nav: d => nav(d.page),
@@ -5030,6 +5196,14 @@ const ACT = {
   'pe-delete': () => deletePlayerFromEditor(),
   'import-go': () => doImport(),
   'ipl-load': () => loadIPLFromSetup(),
+  'pick-players': () => openPlayerPicker(),
+  'pk-fill': d => pkFill(d.how),
+  'pk-all': d => { pkFilter().forEach(i => (d.on === '1' ? PICK.sel.add(i) : PICK.sel.delete(i))); savePick(); drawPlayerPicker(); },
+  'pk-clear': () => { PICK.sel.clear(); savePick(); drawPlayerPicker(); },
+  'pk-load': () => pkLoad(),
+  'pick-open': () => openNextPicker(),
+  'pick-random': () => randomPlayer(),
+  'pick-now': d => { closeModal(); auctionNow(d.pid); },
   bulk: d => bulkOp(d.op),
   'csv-template': () => csvTemplate(),
   'photos-save': () => savePhotosOffline(),
@@ -5091,6 +5265,9 @@ const ACT = {
   },
 };
 const CH = {
+  'pk-f': () => drawPlayerPicker(),
+  'pk-tick': el => { const i = +el.dataset.i; if (el.checked) PICK.sel.add(i); else PICK.sel.delete(i); const tr = el.closest('tr'); if (tr) tr.classList.toggle('pk-on', el.checked); savePick(); pkCount(); },
+  'np-f': () => drawNextPicker(),
   'import-file': el => { const f = el.files[0]; el.value = ''; if (f) importFile(f); },
   'bulk-photos': el => { const fs = Array.from(el.files); el.value = ''; if (fs.length) bulkPhotos(fs); },
   'backup-file': el => { const f = el.files[0]; el.value = ''; if (f) restoreBackup(f); },
@@ -5140,6 +5317,9 @@ const IN = {
   'dock-q': el => { UI.dockQ = el.value; renderDockBody(); },
   'pl-q': el => { UI.plQ = el.value; PAGES.players.update(); },
   qa: () => drawAddQueue(),
+  'pk-q': () => drawPlayerPicker(),
+  'pk-n': el => { PICK.n = clamp(parseInt(el.value, 10) || 0, 0, IPL.players.length); savePick(); pkCount(); },
+  'np-q': () => drawNextPicker(),
   sp: () => drawSurprisePick(),
   cb: () => drawCustom(),
   'cf-type': el => { const ok = $('#cfOk'); if (ok && MODAL) ok.disabled = el.value !== MODAL.typed; },
@@ -5197,12 +5377,17 @@ function onKey(e) {
   }
   switch (k.toLowerCase()) {
     case ' ': spaceBid(); break;
-    case 'enter': if (!S.started) startAuction(); else if (S.live.phase === 'ready') startBidding();   // first Enter shows the player on the projector, the next opens bidding else if (S.live.phase === 'empty' || S.live.phase === 'done') nextPlayer(); break;
+    case 'enter':   // first Enter shows the player on the projector, the next opens bidding; with nobody on the block it brings the next player
+      if (!S.started) startAuction();
+      else if (S.live.phase === 'ready') startBidding();
+      else if (S.live.phase === 'empty' || S.live.phase === 'done') { if (S.rules.order === 'manual') openNextPicker(); else nextPlayer(); }
+      break;
     case 'g': closeCall(); break;
     case 's': askSold(); break;
     case 'u': openUnsold(); break;
     case 'r': undoKey(); break;
     case 'n': nextPlayer(); break;
+    case 'k': openNextPicker(); break;
     case 'p': prevPlayer(); break;
     case 'm': mysteryKey(e.shiftKey); break;
     case 't': rtmKey(); break;

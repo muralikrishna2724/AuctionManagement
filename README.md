@@ -36,6 +36,8 @@ All steps:
 - **Next player kept hidden on the projector**: after each sale the projector shows who bought the player (photo, team and price) while the next player stays hidden behind a "Next player coming up" card. Press `Enter` (or **SHOW PLAYER ON PROJECTOR**) to reveal them, and `Enter` again to open the bidding. Turn it off in **Setup → Sets & order**.
 - **Control room**: the player on the block, current bid, one-click team bids, SOLD / UNSOLD / UNDO / PASS / RTM, team purses, the next-players queue and a live feed, all on one screen.
 - **Manual bid close**: there is no countdown timer. The auctioneer closes each player by hand: click the **BIDDING** box (or press `G`) to call *going once*, then *going twice*, then close. Closing sells to the highest bidder, or marks the player unsold if nobody bid. Any new bid reopens the bidding. The projector shows each call.
+- **Choose your own player list**: in **Setup → Players → ✅ CHOOSE PLAYERS**, set how many players to keep, fill the list with the best rated or at random (filter by role, by source — IPL 2026 auction, auctions 2013–22, other IPL players — or Indian / overseas to build it role by role, say 40 batters then 40 bowlers), and tick or untick anyone. **LOAD** puts exactly those players in the auction, with the mystery players and wild cards drawn from your list. The ticked list is remembered in the browser.
+- **Pick the next player yourself**: press `K` (or **🔍 Pick** above the queue) to search the waiting players by name, role or set, sort them by rating or base price, and put one on the block; **🎲 RANDOM PLAYER** brings a random one. It works in every order mode. Choose **The auctioneer picks each player** in **Setup → Sets & order** and the block waits for your pick (`K`) or a random one (`N`) after every result, while mystery players and wild cards still pop in by themselves.
 - **Random order**: players pop up at random instead of one after another. In **Setup → Sets & order** you can switch to random within each set, or back to the fixed set-by-set order. The 🔀 button in the control room reshuffles the queue. While the order is random, the projector doesn't show who is coming up.
 - **Surprises**: every few players, at random, a mystery player or a wild card pops into the auction on its own. Mystery players get clues written from their own IPL stats; the clues and the reveal can run by themselves. Set how often surprises happen, and how many of each, in **Setup → Surprises**.
 - **Handler control over surprises**: the 🎲 box in the control room shows only the auctioneer who pops in next. Click it to pick a different mystery or wild card player, turn any available player into one, take a fresh random pick, or **pop one in now**. While a surprise player is on the block and nobody has bid yet, the same box swaps them for someone else, and the first player goes back to the surprise pool.
@@ -57,7 +59,8 @@ All steps:
 | `G` | Going once → going twice → close the bidding |
 | `S` / `U` | Sold / unsold |
 | `R` | Undo |
-| `N` / `P` | Next / previous player |
+| `N` / `P` | Next / previous player (`N` brings a random one when you pick players yourself) |
+| `K` | Pick the next player yourself |
 | `M` / `Shift+M` | Mystery player on the block: next clue / reveal now |
 | `T` | Right to Match |
 | `C` | Custom bid |
