@@ -1607,8 +1607,8 @@ function iplPlayers(o, rnd = Math.random) {
   return out;
 }
 
-/* How many players to put in the main auction by default: enough to fill every squad, at most the whole pool */
-const iplSuggest = () => Math.max(10, Math.min(IPL.players.length - 16, S.teams.length * S.rules.maxSquad));
+/* How many players to put in the main auction by default */
+const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players and wild cards
 
 /* ---------- Sample auction (clearly marked; replace in Setup) ---------- */
 function buildSample() {
@@ -4112,7 +4112,7 @@ const SETUP = {
     const n = S.players.length, by = r => S.players.filter(p => p.role === r).length;
     const suggest = iplSuggest(), cnt = f => IPL.players.filter(f).length, n26 = cnt(x => x.s26);
     return `<section class="card" style="border-top:6px solid var(--gold)"><h2>🏏 IPL players <small>${IPL.players.length} players: ${n26} from the IPL 2026 auction, ${cnt(x => x.pa)} from the IPL auctions of 2013–2022 and ${cnt(x => x.ip)} more who have played in the IPL since 2008</small></h2>
-        <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers), so a bigger main auction brings in more of them: legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Players with IPL matches get their role, career stats and special-ability tags from the 2008–2026 match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players and wild cards are drawn from the same group.</p>
+        <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers): legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Every player is loaded by default; for a shorter auction, lower <b>Players in the main auction</b> and the best rated stay in. Players with IPL matches get their role, career stats and special-ability tags from the 2008–2026 match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players and wild cards are drawn from the same group.</p>
         <div class="form-grid"><label class="f"><span>Players in the main auction</span><input id="iplMain" type="number" min="10" max="${IPL.players.length}" value="${suggest}"></label>
           <label class="f"><span>Mystery players</span><input id="iplMys" type="number" min="0" max="30" value="8"></label>
           <label class="f"><span>Wild cards</span><input id="iplWild" type="number" min="0" max="30" value="8"></label></div>
@@ -5274,8 +5274,8 @@ async function boot() {
   const st = a && b ? ((b.updated || 0) > (a.updated || 0) ? b : a) : (a || b);
   const restored = !!(st && Array.isArray(st.players));
   if (restored) S = migrate(st);
-  if (restored && S.sample && MODE === 'control' && !(S.players.some(p => p.s26) && S.players.some(p => p.ip))) S = buildSample();   // old practice data → new player list
   else S = MODE === 'control' ? buildSample() : blankState();
+  if (restored && S.sample && MODE === 'control' && !(S.players.some(p => p.s26) && S.players.length >= IPL.players.length)) S = buildSample();   // old practice data → new player list
   CK = (await idbGet('ck')) || [];
   for (const [k, v] of await idbEntries()) if (typeof k === 'string' && k.startsWith('m:')) MEDIA.set(k.slice(2), v);
   if (MODE === 'projector') {
