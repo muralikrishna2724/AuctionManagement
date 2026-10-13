@@ -116,6 +116,9 @@ kbd{font:700 11px/1 var(--f-body);padding:3px 5px;border-radius:5px;background:r
 .bp-jumps .jump.fixed{cursor:default}
 .bp-jumps .jump.fixed small{font-size:.8em;opacity:.75;margin-left:4px;text-transform:none}
 .mys-secret{margin-top:4px;font:700 12px/1.3 var(--f-cond);letter-spacing:.06em;text-transform:uppercase;color:var(--purple)}
+.pc-set-r{display:flex;align-items:center;gap:10px}
+.change-btn{color:var(--gold-2);border-color:var(--gold)}
+.change-btn:disabled{opacity:.4;cursor:not-allowed}
 .tm-fixed{font-weight:700;padding:8px 2px;color:var(--ink)}
 .tm-fixed.code{font-family:var(--f-cond);letter-spacing:.08em;color:var(--gold-2)}
 .pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
@@ -2679,7 +2682,19 @@ function qAdd(pid, where) {
   });
   toast(`${ctlName(p)} ${where === 'next' ? 'is up next' : 'added to the end of the queue'}.`, 'good');
 }
-function auctionNow(pid) {
+/* Put a player taken off the block back in the queue: 'spread' drops them at a random place in their own set
+   (or anywhere in random order) so a changed player doesn't come straight back; otherwise they go first. */
+function requeue(id, how) {
+  const p = P(id), q = S.queue;
+  if (how !== 'spread' || S.rules.order === 'queue' || !q.length) { q.unshift(id); return; }
+  let lo = 0, hi = q.filter(x => !(P(x) || {}).round2).length;
+  if (S.rules.order === 'sets' && p) {
+    const idx = q.map((x, i) => ((P(x) || {}).setId === p.setId ? i : -1)).filter(i => i >= 0);
+    if (idx.length) { lo = idx[0]; hi = idx[idx.length - 1] + 1; } else hi = 0;
+  }
+  q.splice(lo + Math.floor(Math.random() * (hi - lo + 1)), 0, id);
+}
+function auctionNow(pid, o = {}) {
   const p = P(pid);
   if (!p) return;
   if (p.status === 'sold') return toast(`${p.name} is already sold. Use Corrections to re-auction.`, 'warn');
@@ -2690,7 +2705,10 @@ function auctionNow(pid) {
   if (inSurprisePool(p)) return toast('Mystery and wild card players enter the auction by surprise.', 'info');
   commit(() => {
     const cur = lotPlayer();
-    if (cur && cur.status === 'available' && lv.phase !== 'done') S.queue.unshift(cur.id);
+    if (cur && cur.status === 'available' && lv.phase !== 'done') {
+      requeue(cur.id, o.back);
+      if (o.back === 'spread') log({ type: 'correction', pid: cur.id, note: `Player changed: ${cur.name} → ${p.name} (back in the queue)` });
+    }
     if (p.status === 'unsold') log({ type: 'unsold_round', pid, note: `${p.name} back in the auction` });
     loadLot(pid, 'manual');
   });
@@ -3109,6 +3127,13 @@ function playerBadges(p, hf, hidden) {
   if (!hidden && p.prevTeam && T(p.prevTeam) && (!p.wild || S.rules.wild.rtm)) b.push(`<span class="tag" style="color:#9cc9f2">🔁 RTM: ${esc(T(p.prevTeam).short)}</span>`);
   return b.join('');
 }
+/* "Change player" on the control-room card: swap the player on the block before anyone bids. */
+function changeBtnHTML(p) {
+  const lv = S.live;
+  if (lv.pid !== p.id || (lv.phase !== 'ready' && lv.phase !== 'bidding')) return '';
+  const busy = lv.bids.length > 0, surp = lv.how === 'surprise';
+  return `<button class="mini change-btn" data-act="${surp ? 'surprise-pick' : 'change-player'}" ${busy ? 'disabled title="Bids are open: sell or mark unsold first"' : `title="Bring a different ${surp ? 'mystery / wild card ' : ''}player onto the block"`}>🔄 CHANGE PLAYER</button>`;
+}
 function playerCardHTML(p) {
   const hidden = isHiddenNow(p), hf = {};   // the auctioneer always sees the real player; the projector keeps it hidden
   const kind = p.wild ? 'wild' : p.mystery ? 'mystery' : 'normal';
@@ -3116,7 +3141,7 @@ function playerCardHTML(p) {
   const q = QM;
   const base = lotBase(p);
   return `<article class="pcard k-${kind}">
-    <div class="pc-set"><span>${esc(sp.label)}</span><span>PLAYER ${sp.idx} / ${sp.total}</span></div>
+    <div class="pc-set"><span>${esc(sp.label)}</span><span class="pc-set-r">PLAYER ${sp.idx} / ${sp.total}${changeBtnHTML(p)}</span></div>
     <div class="pc-head">
       ${hf.photo ? '<span class="ph lg mys">?</span>' : photoHTML(p, 'lg')}
       <div class="pc-ident">
@@ -4508,14 +4533,19 @@ function randomPlayer() {
   if (lv.phase === 'bidding' && lv.bids.length) return toast('Bids are open. Press S (sold) or U (unsold) first.', 'warn');
   const q = pickable(), main = q.filter(p => !p.round2), from = main.length ? main : q;
   if (!from.length) return toast('No players left in the queue. Add players, or start the unsold round from the Unsold pool tab.', 'warn');
+  const change = MODAL && MODAL.id === 'pick-next' && UI.pickChange;
   if (MODAL && MODAL.id === 'pick-next') closeModal();
-  auctionNow(from[Math.floor(Math.random() * from.length)].id);
+  auctionNow(from[Math.floor(Math.random() * from.length)].id, change ? { back: 'spread' } : {});
 }
-function openNextPicker() {
+function openNextPicker(change) {
   if (!S.started) return toast('Start the auction first.', 'info');
+  const lv = S.live;
+  if (change && lv.how === 'surprise' && lv.pid) return openSurprisePick();   // a mystery / wild card is swapped from the surprise pool
+  if (change && lv.bids.length) return toast('Bids are open on this player. Sell (S) or mark unsold (U) first.', 'warn');
+  UI.pickChange = !!(change && lv.pid && (lv.phase === 'ready' || lv.phase === 'bidding'));
   const opt = (v, l) => `<option value="${v}">${l}</option>`;
   openModal({
-    id: 'pick-next', tone: 'gold', title: '🔍 PICK THE NEXT PLAYER', wide: true, live: drawNextPicker,
+    id: 'pick-next', tone: 'gold', title: UI.pickChange ? '🔄 CHANGE THE PLAYER' : '🔍 PICK THE NEXT PLAYER', wide: true, live: drawNextPicker,
     body: `<div class="pk-bar"><input type="search" id="npQ" placeholder="Search name, ID, role, tag or set" data-in="np-q" autofocus aria-label="Search players">
         <select id="npRole" data-ch="np-f" aria-label="Role">${opt('', 'All roles')}${ROLES.map(r => opt(r, ROLE_INFO[r].pl)).join('')}</select>
         <select id="npSort" data-ch="np-f" aria-label="Sort">${opt('rt', 'Best rated first')}${opt('base', 'Highest base price first')}${opt('name', 'A to Z')}${opt('q', 'Queue order')}</select></div>
@@ -4535,7 +4565,7 @@ function drawNextPicker() {
   else if (sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
   const cur = lotPlayer(), lv = S.live, note = $('#npNote');
   if (note) note.innerHTML = cur && lv.phase !== 'done' && lv.phase !== 'empty'
-    ? `On the block now: <b>${esc(ctlName(cur))}</b>${lv.bids.length ? '. Bids are open, so sell or mark unsold first.' : '. Picking another player puts them back in the queue.'}`
+    ? `On the block now: <b>${esc(ctlName(cur))}</b>${lv.bids.length ? '. Bids are open, so sell or mark unsold first.' : UI.pickChange ? '. Pick the player to bring in instead; ' + esc(cur.name) + ' goes back into the queue at a random place' + (S.rules.order === 'sets' ? ' in the same set.' : '.') : '. Picking another player puts them back in the queue.'}`
     : `${plural(all.length, 'player')} waiting. Pick one to bring onto the block${S.rules.curtain === false ? '' : ' (they stay hidden on the projector until you press Enter)'}.`;
   const LIM = 200, setName = p => (S.sets.find(x => x.id === p.setId) || {}).name || '';
   patch(el, list.length
@@ -5164,7 +5194,7 @@ function fixAction(kind) {
   renderNow();
 }
 
-const ONCE = new Set(['pick-random', 'pick-now', 'show-proj', 'bid', 'sold', 'sold-confirm', 'unsold', 'unsold-mark', 'unsold-pool-add', 'undo', 'next', 'start', 'start-auction', 'close-call', 'skip', 'rtm-use', 'cb-place', 'sp-pop', 'q-now', 'confirm-ok']);
+const ONCE = new Set(['pick-random', 'pick-now', 'change-player', 'show-proj', 'bid', 'sold', 'sold-confirm', 'unsold', 'unsold-mark', 'unsold-pool-add', 'undo', 'next', 'start', 'start-auction', 'close-call', 'skip', 'rtm-use', 'cb-place', 'sp-pop', 'q-now', 'confirm-ok']);
 let lastHit = { key: '', t: 0 };
 const ACT = {
   nav: d => nav(d.page),
@@ -5265,7 +5295,8 @@ const ACT = {
   'pk-load': () => pkLoad(),
   'pick-open': () => openNextPicker(),
   'pick-random': () => randomPlayer(),
-  'pick-now': d => { closeModal(); auctionNow(d.pid); },
+  'pick-now': d => { const change = UI.pickChange; closeModal(); auctionNow(d.pid, change ? { back: 'spread' } : {}); },
+  'change-player': () => openNextPicker(true),
   bulk: d => bulkOp(d.op),
   'csv-template': () => csvTemplate(),
   'photos-save': () => savePhotosOffline(),
