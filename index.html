@@ -1253,7 +1253,7 @@ function defaultRules() {
     mystery: { hide: 'all', reveal: 'after', max: 5, auto: true, every: 6 },   // reveal: always 'after' (on SOLD)
     wild: { max: 4, when: 'any', afterN: 20, specialBase: false, base: cr2l(2), rtm: false },
     surprise: { on: true, min: 4, max: 8, mysteryPct: 50, spread: true },   // spread: space surprises evenly through the whole auction
-    plan: { BAT: 5, AR: 3, WK: 2, BOWL: 5, extra: 12, mystery: 5, wild: 4, secs: 60 },   // secs: seconds per player, for the time estimate   // the 4 role sets: players per team for each role, + extra per set
+    plan: { BAT: 4, AR: 2, WK: 1, BOWL: 4, extra: 10, mystery: 5, wild: 4, secs: 60 },   // 11 per team (the minimum squad) + 10 spare per set = 150 players, about 2 h 30 min   // secs: seconds per player, for the time estimate   // the 4 role sets: players per team for each role, + extra per set
     setOverseas: false,
     sound: true,
   };
@@ -1297,7 +1297,9 @@ function migrate(s) {
   }
   delete s.rules.timer;
   s.rules.mystery.reveal = 'after';
-  s.rules.rtmCount = 0;   // Right to Match is not used in this auction   // mystery players are only ever revealed when a team buys them
+  s.rules.rtmCount = 0;   // Right to Match is not used in this auction
+  const pl = s.rules.plan;
+  if (pl && pl.BAT === 5 && pl.AR === 3 && pl.WK === 2 && pl.BOWL === 5 && pl.extra === 12) Object.assign(pl, { BAT: 4, AR: 2, WK: 1, BOWL: 4, extra: 10 });   // old default → the 3-hour plan   // mystery players are only ever revealed when a team buys them
   s.live = Object.assign(emptyLive(), s.live || {});
   delete s.live.timer;
   s.players = (s.players || []).map(p => newPlayer(p));
@@ -1693,8 +1695,9 @@ function roleSetSizes(pl = S.rules.plan, nTeams = S.teams.length) {
 function roleSetCheck(z = roleSetSizes()) {
   const R = S.rules, nT = S.teams.length;
   const os = sum(z.map(x => Math.min(x.os, x.availOs))), ind = sum(z.map(x => x.size)) - os;
-  const usable = ind + Math.min(os, nT * R.maxOverseas), need = nT * R.maxSquad;
-  return { ind, os, usable, need, ok: usable >= need };
+  const per = clamp(ROLES.reduce((a, r) => a + ((R.plan || {})[r] || 0), 0), R.minSquad, R.maxSquad);   // the squad every team should reach
+  const usable = ind + Math.min(os, nT * R.maxOverseas), need = nT * per;
+  return { ind, os, usable, need, per, ok: usable >= need };
 }
 function buildRoleSets(pl = S.rules.plan, rnd = Math.random) {
   const sizes = roleSetSizes(pl);
@@ -1798,7 +1801,7 @@ function iplPlayers(o, rnd = Math.random) {
 const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players and wild cards
 
 /* ---------- Sample auction (clearly marked; replace in Setup) ---------- */
-const SAMPLE_V = 6;   // bump to rebuild practice auctions saved by older versions
+const SAMPLE_V = 7;   // bump to rebuild practice auctions saved by older versions
 function buildSample() {
   const s = blankState();
   s.sample = true;
@@ -2067,6 +2070,20 @@ function checkBid(tid, amt, p, o = {}) {
     const roomAfter = R.maxSquad - (ti.count + 1);
     const helps = (ti.roles[p.role] || 0) < (R.roleMin[p.role] || 0);
     if (needAfter > roomAfter && !helps) hard.push(hid ? '❌ NOT ELIGIBLE (hidden rule)' : '❌ NO ROOM LEFT FOR THE ROLE MINIMUMS');
+    // leave enough of this role for the other teams that still need it (a team at its overseas limit needs an Indian one)
+    if (!helps && (R.roleMin[p.role] || 0) > 0) {
+      const left = S.players.filter(x => x.id !== p.id && x.role === p.role && (x.status === 'available' || x.status === 'unsold'));
+      const ind = left.filter(x => !x.overseas).length;
+      let need = 0, needInd = 0;
+      for (const t of S.teams) {
+        if (t.id === tid) continue;
+        const o2 = D().ti[t.id], short = Math.max(0, (R.roleMin[p.role] || 0) - (o2.roles[p.role] || 0));
+        if (!short || o2.count >= R.maxSquad) continue;
+        need += short; if (o2.overseas >= R.maxOverseas) needInd += short;
+      }
+      if (need > left.length || needInd > ind)
+        hard.push(hid ? '❌ NOT ELIGIBLE (hidden rule)' : `❌ OTHER TEAMS STILL NEED ${ROLE_INFO[p.role].pl.toUpperCase()}`);
+    }
   }
   if (amt <= ti.purse && ti.purse - amt < R.lowPurse) soft.push('⚠️ LOW PURSE AFTER THIS BID: ' + money(ti.purse - amt));
   return { hard, soft };
@@ -2077,6 +2094,7 @@ function shortReason(r) {
   if (/OVERSEAS/.test(r)) return 'OVERSEAS';
   if (/LIMIT/.test(r)) return 'ROLE LIMIT';
   if (/NOT ELIGIBLE/.test(r)) return 'BLOCKED';
+  if (/OTHER TEAMS/.test(r)) return 'LEAVE FOR OTHERS';
   if (/MUST KEEP/.test(r)) return 'RESERVE';
   if (/Passed/.test(r)) return 'PASSED';
   if (/highest/.test(r)) return 'LEADING';
@@ -4319,14 +4337,14 @@ const SETUP = {
     const suggest = iplSuggest(), cnt = f => IPL.players.filter(f).length, n26 = cnt(x => x.s26);
     const pl = S.rules.plan, z = roleSetSizes(), perTeam = ROLES.reduce((a, r) => a + (pl[r] || 0), 0), nT = S.teams.length;
     const sets4 = `<section class="card" style="border-top:6px solid var(--green)"><h2>🗂 Auction in 4 sets <small>Batters, all-rounders, wicketkeepers and bowlers: enough for every team, plus spare players</small></h2>
-        <p>Set how many players of each role every team should be able to buy, and how many spare players each set gets (10 to 15). Each set is filled with the best rated players of that role from the ${IPL.players.length} in the list. The mystery players and wild cards are drawn from inside the sets and pop in by surprise.</p>
+        <p>Set how many players of each role every team should be able to buy, and how many spare players each set gets (10 to 15). The default plan is 11 per team (the minimum squad), 150 players, so the auction fits in about 3 hours. Each set is filled with the best rated players of that role from the ${IPL.players.length} in the list. The mystery players and wild cards are drawn from inside the sets and pop in by surprise.</p>
         <div class="form-grid">${ROLE_SETS.map(([r, nm]) => fld(nm.charAt(0) + nm.slice(1).toLowerCase() + ' per team', 'rules.plan.' + r, 'int', { min: 0, max: 15 })).join('')}${fld('Spare players per set', 'rules.plan.extra', 'int', { min: 10, max: 15 })}${fld('🕵️ Mystery players', 'rules.plan.mystery', 'int', { min: 0, max: 20 })}${fld('🃏 Wild cards', 'rules.plan.wild', 'int', { min: 0, max: 20 })}${fld('Seconds per player', 'rules.plan.secs', 'int', { min: 15, max: 300, hint: 'for the time estimate' })}</div>
         <div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Set</th><th class="r">Per team</th><th class="r">× ${nT} teams</th><th class="r">+ spare</th><th class="r">Players in the set</th><th class="r">🇮🇳 Indian</th><th class="r">🌎 Overseas</th><th class="r">In the list</th></tr></thead><tbody>
           ${z.map((x, i) => `<tr><td class="pname">SET ${i + 1} · ${x.name}</td><td class="r">${pl[x.r] || 0}</td><td class="r">${x.need}</td><td class="r">${x.extra}</td><td class="r"><b>${x.size}</b></td><td class="r">${x.ind}</td><td class="r">${x.os}</td><td class="r ${x.size > x.avail ? 'bad' : 'muted'}">${x.avail}</td></tr>`).join('')}
           <tr><td class="pname">TOTAL</td><td class="r">${perTeam}</td><td class="r">${perTeam * nT}</td><td class="r">${4 * (pl.extra || 0)}</td><td class="r"><b>${sum(z.map(x => x.size))}</b></td><td class="r">${sum(z.map(x => x.ind))}</td><td class="r">${sum(z.map(x => x.os))}</td><td></td></tr></tbody></table></div>
-        ${(() => { const c = roleSetCheck(z); return `<p class="notice ${c.ok ? 'good' : 'bad'}" style="margin-top:10px">${c.ok ? '✅' : '⚠️'} ${c.ind} Indian players + ${Math.min(c.os, nT * S.rules.maxOverseas)} of the ${c.os} overseas players can be bought (each team takes at most ${S.rules.maxOverseas} overseas): ${c.usable} for the ${c.need} places in ${nT} full squads of ${S.rules.maxSquad}${c.ok ? `, with ${c.usable - c.need} to spare.` : `. That is ${c.need - c.usable} short: add spare players or lower the numbers.`}</p>`; })()}
+        ${(() => { const c = roleSetCheck(z); return `<p class="notice ${c.ok ? 'good' : 'bad'}" style="margin-top:10px">${c.ok ? '✅' : '⚠️'} ${c.ind} Indian players + ${Math.min(c.os, nT * S.rules.maxOverseas)} of the ${c.os} overseas players can be bought (each team takes at most ${S.rules.maxOverseas} overseas): ${c.usable} for the ${c.need} places in ${nT} squads of ${c.per}${c.per < S.rules.maxSquad ? ` (squads can grow to ${S.rules.maxSquad} from the spare players)` : ''}${c.ok ? `, with ${c.usable - c.need} to spare.` : `. That is ${c.need - c.usable} short: add spare players or lower the numbers.`}</p>`; })()}
         ${(() => { const tot = sum(z.map(x => x.size)), sp = pl.secs || 60, min = tot * sp / 60; return `<p class="notice info" style="margin-top:10px">⏱ About <b>${fmtDur(min)}</b> for ${tot} players at ${sp} s each, plus breaks and the unsold round. ${min > 150 ? `To shorten it: ${pl.extra > 10 ? `10 spare players per set saves ${fmtDur(4 * (pl.extra - 10) * sp / 60)}; ` : ''}keep each player under a minute (call going once / twice early with <kbd>G</kbd>).` : ''}</p>`; })()}
-        ${perTeam !== S.rules.maxSquad ? `<p class="notice" style="margin-top:10px">${perTeam} players per team in the sets; the maximum squad is ${S.rules.maxSquad} (Auction rules).</p>` : ''}${ROLES.some(r => (pl[r] || 0) < (S.rules.roleMin[r] || 0)) ? `<p class="notice" style="margin-top:10px">Some roles are below the minimum each team needs (Auction rules → Players per role).</p>` : ''}
+        ${perTeam < S.rules.minSquad || perTeam > S.rules.maxSquad ? `<p class="notice bad" style="margin-top:10px">${perTeam} players per team in the sets, but squads must have ${S.rules.minSquad} to ${S.rules.maxSquad} players (Auction rules).</p>` : perTeam < S.rules.maxSquad ? `<p class="notice info" style="margin-top:10px">Every team gets ${perTeam} players (the plan); with the spare players and role limits one above the plan, teams can buy up to ${Math.min(S.rules.maxSquad, ROLES.reduce((a, r) => a + (pl[r] || 0) + 1, 0))}.</p>` : ''}${ROLES.some(r => (pl[r] || 0) < (S.rules.roleMin[r] || 0)) ? `<p class="notice" style="margin-top:10px">Some roles are below the minimum each team needs (Auction rules → Players per role).</p>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn green" data-act="sets4-load">🗂 BUILD THE 4 SETS</button><span class="muted">Replaces the current player list. Players then come up set by set, at random inside each set, and each team's limit per role becomes one above the numbers here.</span></div></section>`;
     return sets4 + `<section class="card" style="border-top:6px solid var(--gold)"><h2>🏏 IPL players <small>${IPL.players.length} players: ${n26} from the IPL 2026 auction, ${cnt(x => x.pa)} from the IPL auctions of 2013–2022 and ${cnt(x => x.ip)} more who have played in the IPL since 2013</small></h2>
         <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers): legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Every player is loaded by default; for a shorter auction, lower <b>Players in the main auction</b> and the best rated stay in. Only players from 2013 to 2026 are in the list: everyone sold at an IPL auction in those years or who played an IPL season since 2013. Players with IPL matches get their role, career stats and special-ability tags from the IPL match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players and wild cards are drawn from the same group. To decide yourself, press <b>✅ CHOOSE PLAYERS</b>: set how many players to keep, fill the list with the best rated or at random (by role, source or overseas if you like), and tick or untick anyone.</p>
