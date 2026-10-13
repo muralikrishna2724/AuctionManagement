@@ -4582,7 +4582,6 @@ function projLot(p) {
       <div class="pj-meta"><span>BAT<b>${hf.role ? q : esc(p.bat || '—')}</b></span><span>BOWL<b>${hf.role ? q : esc(p.bowl || '—')}</b></span><span class="rt">RATING<b>${hf.all ? q : esc(p.rating)}</b></span></div>
       ${(() => { const tg = hf.all ? [] : (p.tags || []).filter(t => !t.startsWith('❓'));   // organiser notes stay off the big screen
         return tg.length ? `<div class="pj-tags">${tg.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''; })()}
-      ${hidden ? '' : iplStatsHTML(p, true)}
       ${clues}
     </section>
     <section class="pj-bid">
