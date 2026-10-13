@@ -4412,15 +4412,30 @@ function savePlayerEditor() {
 
 /* ---------- Reports ---------- */
 // [key, label, points, auto]: auto criteria are worked out by the app from the squads (the same for every judge)
-const CRIT = [['rating', '⭐ Average Player Rating', 20, true, '⭐ Avg rating'], ['value', '💰 Value for Money', 20, true, '💰 Value'], ['strength', '💪 Team Strength & Match Winners', 15, false, '💪 Strength'], ['balance', '⚖️ Team Balance', 15, false, '⚖️ Balance'], ['versatility', '🔄 Versatility', 10, false, '🔄 Versatility'], ['batting', '🏏 Batting Depth', 8, false, '🏏 Batting'], ['bowling', '🎯 Bowling Strength', 8, false, '🎯 Bowling'], ['wk', '🧤 Wicketkeeping & Fielding', 4, false, '🧤 WK & field']];
+const CRIT = [['rating', '⭐ Average Player Rating', 20, true, '⭐ Avg rating'], ['value', '💰 Value for Money', 20, true, '💰 Value'], ['combo', '⚖️ Balanced Team Combo', 10, true, '⚖️ Combo'], ['batbowl', '🔀 Batting–Bowling Combination', 10, true, '🔀 Bat–bowl'], ['strength', '💪 Team Strength & Match Winners', 15, false, '💪 Strength'], ['versatility', '🔄 Versatility', 10, false, '🔄 Versatility'], ['batting', '🏏 Batting Depth', 6, false, '🏏 Batting'], ['bowling', '🎯 Bowling Strength', 6, false, '🎯 Bowling'], ['wk', '🧤 Wicketkeeping & Fielding', 3, false, '🧤 WK & field']];
 const half = v => Math.round(v * 2) / 2;
 /* ⭐ Average Player Rating: 1 point for every rating point above 75 (an average of 90 → 15, 95 or more → 20).
    💰 Value for Money: 10 points for paying exactly the fair price of the squad, up to 20 for bargains
-   (fair price: what players of that rating cost in this auction, in proportion to rating²). */
+   (fair price: what players of that rating cost in this auction, in proportion to rating²).
+   ⚖️ Balanced Team Combo: keeper, batters, all-rounders and bowlers equally strong: the gap between the average
+   rating of the strongest and the weakest role group; 5 or less = 10, then 2 off for every 5 more (2.5 off per missing role).
+   🔀 Batting–Bowling Combination: left/right-hand mix among the 5 batting options (2+ of each = 3.5, only 1 of one = 2)
+   + pace/spin mix among the 4 bowling options (the same) + batting as strong as bowling (3, minus 1 for every 3 points
+   between the two strength bars). */
 function autoScore(k, tid) {
   const ti = D().ti[tid], sq = ti ? ti.squad : [];
   if (!sq.length) return 0;
   if (k === 'rating') return half(clamp(sum(sq.map(p => p.rating)) / sq.length - 75, 0, 20));
+  if (k === 'combo') {
+    const avgs = ROLES.map(r => sq.filter(p => p.role === r)).filter(g => g.length).map(g => sum(g.map(p => p.rating)) / g.length);
+    return half(clamp(10 - Math.max(0, Math.max(...avgs) - Math.min(...avgs) - 5) * 0.4 - 2.5 * (ROLES.length - avgs.length), 0, 10));
+  }
+  if (k === 'batbowl') {
+    const h = sq.filter(p => p.role !== 'BOWL').map(p => (/left/i.test(p.bat) ? 'L' : /right/i.test(p.bat) ? 'R' : ''));
+    const kd = sq.filter(p => p.role === 'BOWL' || p.role === 'AR').map(p => p.bowlKind || bowlKindOf(p.bowl));
+    const mixPts = (a, x, y) => { const m = Math.min(a.filter(v => v === x).length, a.filter(v => v === y).length); return m >= 2 ? 3.5 : m === 1 ? 2 : 0; };
+    return half(mixPts(h, 'L', 'R') + mixPts(kd, 'pace', 'spin') + clamp(3 - Math.abs(ti.an.batting - ti.an.bowling) / 3, 0, 3));
+  }
   if (k === 'value') { const fair = sum(sq.map(fairPrice)), paid = sum(sq.map(p => p.soldPrice || 0)); return fair ? half(clamp(10 + 20 * (fair - paid) / fair, 0, 20)) : 0; }
   return 0;
 }
@@ -4506,7 +4521,7 @@ PAGES.judging = {
     if (UI.judge >= js.length) UI.judge = 0;
     const j = js[UI.judge];
     $('#pg-judging').innerHTML = `<div class="pg">
-      <div class="pg-head"><div><h1>Judging</h1><p>Each team is scored out of 100. <b>⭐ Average Player Rating (20)</b> and <b>💰 Value for Money (20)</b> are worked out by the app from the squads, the same for every judge; the judges score the other 60 points. The stat hints under each box are only a guide.</p></div></div>
+      <div class="pg-head"><div><h1>Judging</h1><p>Each team is scored out of 100. <b>⭐ Average Player Rating (20)</b>, <b>💰 Value for Money (20)</b>, <b>⚖️ Balanced Team Combo (10)</b> and <b>🔀 Batting–Bowling Combination (10)</b> are worked out by the app from the squads, the same for every judge; the judges score the other 40 points. The stat hints under each box are only a guide.</p></div></div>
       <section class="card"><div class="row" style="justify-content:space-between"><div class="subtabs">${js.map((x, i) => `<button class="${i === UI.judge ? 'on' : ''}" data-act="judge-tab" data-i="${i}">${esc(x.name)}</button>`).join('')}<button data-act="judge-add">+ JUDGE</button></div>
         ${j ? `<div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:8px"><span>Name</span><input type="text" id="jName" data-in="judge-name" style="width:200px"></label>${js.length > 1 ? '<button class="mini" data-act="judge-remove">Remove judge</button>' : ''}</div>` : ''}</div>
         <div class="table-wrap" style="margin-top:12px"><table class="tbl" id="judgeTbl"><thead><tr><th>Team</th>${CRIT.map(([, l, m, auto, sh]) => `<th class="c" title="${esc(l)}${auto ? ' (worked out by the app)' : ''}">${sh || l}<br><span class="muted">/ ${m}${auto ? ' · auto' : ''}</span></th>`).join('')}<th class="c">TOTAL<br><span class="muted">/ 100</span></th></tr></thead><tbody>

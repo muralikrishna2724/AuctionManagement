@@ -7,7 +7,7 @@
   @page { size: A4; margin: 15mm 14mm 15mm 14mm; }
   :root { --navy:#0b1233; --ink:#1b1f2e; --muted:#5b6175; --gold:#c99a1e; --line:#d9dce5; --soft:#f3f4f8; --green:#2f7d32; --red:#c62828; }
   * { box-sizing: border-box; }
-  body { margin:0; font: 9.2pt/1.36 "DejaVu Sans", "Liberation Sans", Arial, sans-serif; color: var(--ink); }
+  body { margin:0; font: 8.9pt/1.32 "DejaVu Sans", "Liberation Sans", Arial, sans-serif; color: var(--ink); }
   h1 { font-size: 20pt; line-height: 1.1; margin: 0 0 4pt; color: var(--navy); }
   .sub { color: var(--muted); font-size: 10.5pt; margin: 0 0 12pt; }
   .band { background: var(--navy); color:#fff; border-radius: 6pt; padding: 9pt 13pt; margin-bottom: 9pt; }
@@ -19,16 +19,16 @@
   ol, ul { margin: 0 0 6pt; padding-left: 15pt; }
   li { margin: 0 0 3pt; }
   table { width: 100%; border-collapse: collapse; margin: 4pt 0 8pt; }
-  th, td { text-align: left; vertical-align: top; padding: 3pt 5pt; border-bottom: 0.6pt solid var(--line); }
+  th, td { text-align: left; vertical-align: top; padding: 2.4pt 5pt; border-bottom: 0.6pt solid var(--line); }
   th { background: var(--soft); font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
   tr { break-inside: avoid; }
   .crit td:first-child { font-weight: bold; color: var(--navy); width: 24%; }
-  .crit td.pts { text-align: center; font-weight: bold; font-size: 12pt; color: var(--gold); width: 7%; }
+  .crit td.pts { text-align: center; font-weight: bold; font-size: 11pt; color: var(--gold); width: 7%; }
   .bands { font-size: 7.8pt; color: var(--muted); margin-top: 2pt; }
   .bands b { color: var(--ink); }
   .tip { background: #fff8e1; border-left: 3pt solid var(--gold); padding: 6pt 9pt; margin: 6pt 0 8pt; break-inside: avoid; }
   .facts { display: flex; gap: 5pt; margin: 2pt 0 7pt; }
-  .facts div { flex: 1; background: var(--soft); border-radius: 5pt; padding: 6pt; text-align: center; font-size: 8.5pt; color: var(--muted); }
+  .facts div { flex: 1; background: var(--soft); border-radius: 5pt; padding: 4pt; text-align: center; font-size: 8.5pt; color: var(--muted); }
   .facts b { display:block; font-size: 12pt; color: var(--navy); margin-bottom: 1pt; }
   .flow { display: flex; gap: 5pt; margin: 6pt 0 10pt; break-inside: avoid; }
   .flow div { flex: 1; background: var(--soft); border-radius: 5pt; padding: 6pt; font-size: 8.8pt; }
@@ -38,7 +38,7 @@
   .card h3 { margin-top: 0; }
   .page-break { break-before: page; }
   .sheet th, .sheet td { border: 0.8pt solid #9aa0b4; text-align: center; padding: 0; height: 32pt; vertical-align: middle; }
-  .sheet th { height: auto; padding: 4pt 2pt; font-size: 7.6pt; line-height: 1.25; background: var(--soft); color: var(--navy); }
+  .sheet th { height: auto; padding: 4pt 1pt; font-size: 7pt; line-height: 1.25; background: var(--soft); color: var(--navy); }
   .sheet td:first-child { text-align: left; padding: 0 6pt; font-weight: bold; white-space: nowrap; font-size: 9pt; }
   .sheet .max { display:block; color: var(--muted); font-weight: normal; }
   .line { display:inline-block; border-bottom: 0.8pt solid #9aa0b4; min-width: 150pt; height: 14pt; vertical-align: bottom; }
@@ -56,13 +56,13 @@
   <div><b>10</b>IPL franchises</div>
   <div><b>7</b>players per squad<br>1 WK · 2 BAT · 2 AR · 2 BOWL</div>
   <div><b>₹100 Cr</b>purse per team<br>max 4 overseas</div>
-  <div><b>100</b>points: 40 worked out<br>by the app + 60 by judges</div>
+  <div><b>100</b>points: 60 worked out<br>by the app + 40 by judges</div>
   <div><b>Average</b>of the judges<br>decides the winner</div>
 </div>
 
-<p>Every team ends with exactly 7 players in the same shape (1 wicketkeeper, 2 batters, 2 all-rounders, 2 bowlers), so judges don't check <i>whether</i> a team has the right roles, but <b>how good, how well balanced and how well bought</b> its 7 players are. Two criteria (40 points) are <b>worked out by the app</b> from the squads, the same for every judge; each judge scores the other six (60 points) in steps of 0.5.</p>
+<p>Every team ends with exactly 7 players in the same shape (1 wicketkeeper, 2 batters, 2 all-rounders, 2 bowlers), so judges don't check <i>whether</i> a team has the right roles, but <b>how good, how well balanced and how well bought</b> its 7 players are. Four criteria (60 points) are <b>worked out by the app</b> from the squads, the same for every judge; each judge scores the other five (40 points) in steps of 0.5.</p>
 
-<h2>The eight criteria</h2>
+<h2>The nine criteria</h2>
 <table class="crit">
   <thead><tr><th>Criterion</th><th style="text-align:center">Points</th><th>What counts</th></tr></thead>
   <tbody>
@@ -70,31 +70,33 @@
       <div class="bands"><b>95+</b> → 20 · <b>92</b> → 17 · <b>90</b> → 15 · <b>88</b> → 13 · <b>85</b> → 10 · <b>82</b> → 7 · <b>80</b> → 5 · <b>75 or less</b> → 0</div></td></tr>
     <tr><td>💰 Value for Money<br><small style="color:var(--gold)">🤖 worked out by the app</small></td><td class="pts">20</td><td><b>High-rated players for low money.</b> The app works out the squad's <i>fair price</i>: what players of those ratings cost in this auction (from the prices actually paid; a higher rating is worth more). Paying exactly the fair price = 10; every 5% below it adds 1 point, every 5% above takes 1 away.
       <div class="bands"><b>paid 50% below fair</b> → 20 · <b>25% below</b> → 15 · <b>fair</b> → 10 · <b>25% above</b> → 5 · <b>50% above</b> → 0. Unspent purse only counts through this.</div></td></tr>
+    <tr><td>⚖️ Balanced Team Combo<br><small style="color:var(--gold)">🤖 worked out by the app</small></td><td class="pts">10</td><td>Are the keeper, the batters, the all-rounders and the bowlers <b>all equally strong</b>? The app compares the average rating of each role group: the gap between the strongest and the weakest group.
+      <div class="bands"><b>gap 5 or less</b> → 10 · <b>10</b> → 8 · <b>15</b> → 6 · <b>20</b> → 4 · <b>25</b> → 2 · <b>30+</b> → 0</div></td></tr>
+    <tr><td>🔀 Batting–Bowling Combination<br><small style="color:var(--gold)">🤖 worked out by the app</small></td><td class="pts">10</td><td>Three parts: <b>left- and right-hand batters</b> among the 5 batting options (keeper, batters, all-rounders): 2 or more of each = 3.5, only 1 of one hand = 2, all the same = 0 · <b>pace and spin</b> among the 4 bowling options (bowlers, all-rounders): scored the same way, 3.5 / 2 / 0 · <b>batting as strong as bowling</b>: 3, minus 1 for every 3 points between the app's batting and bowling strength bars.</td></tr>
     <tr><td>💪 Team Strength &amp; Match Winners</td><td class="pts">15</td><td>Beyond the average: proven match winners, big-match players, form and IPL records. A squad with no weak link beats one with two stars and five fillers.
       <div class="bands"><b>13–15</b> several match winners, no weak link · <b>9–12</b> strong core · <b>5–8</b> a mix · <b>0–4</b> few real threats</div></td></tr>
-    <tr><td>⚖️ Team Balance</td><td class="pts">15</td><td>Every squad has the same roles, so judge the balance <i>inside</i> them: batting and bowling about equally strong; left- and right-hand batters; pace <i>and</i> spin among the 4 bowling options (2 bowlers + 2 all-rounders).
-      <div class="bands"><b>13–15</b> no gaps · <b>9–12</b> one small gap (e.g. no spinner) · <b>5–8</b> lopsided · <b>0–4</b> badly unbalanced</div></td></tr>
     <tr><td>🔄 Versatility</td><td class="pts">10</td><td>Players who do more than one job: all-rounders who really bat <i>and</i> bowl, a keeper who opens or finishes, bowlers who can bat, 🔄 Versatile tags.
       <div class="bands"><b>9–10</b> several multi-skill players · <b>6–8</b> the all-rounders deliver · <b>3–5</b> little cover · <b>0–2</b> one-dimensional</div></td></tr>
-    <tr><td>🏏 Batting Depth</td><td class="pts">8</td><td>How far down the 7 can bat: openers, an anchor, finishers and power hitters; runs and strike rate.
-      <div class="bands"><b>7–8</b> bats deep · <b>5–6</b> solid · <b>3–4</b> thin · <b>0–2</b> weak</div></td></tr>
-    <tr><td>🎯 Bowling Strength</td><td class="pts">8</td><td>The 4 bowling options: wicket-takers, economy, death bowling, spin and pace.
-      <div class="bands"><b>7–8</b> four strong options · <b>5–6</b> good · <b>3–4</b> one or two weak overs · <b>0–2</b> weak</div></td></tr>
-    <tr><td>🧤 Wicketkeeping &amp; Fielding</td><td class="pts">4</td><td>The keeper's quality behind the stumps and with the bat; gun fielders and safe hands.
-      <div class="bands"><b>4</b> top keeper and fielders · <b>3</b> good · <b>1–2</b> average · <b>0</b> weak</div></td></tr>
-    <tr><td style="color:var(--ink)">Total</td><td class="pts" style="color:var(--navy)">100</td><td style="font-size:8.5pt;color:var(--muted)">40 automatic + 60 from each judge</td></tr>
+    <tr><td>🏏 Batting Depth</td><td class="pts">6</td><td>How far down the 7 can bat: openers, an anchor, finishers and power hitters; runs and strike rate.
+      <div class="bands"><b>5–6</b> bats deep · <b>3–4</b> solid · <b>1–2</b> thin · <b>0</b> weak</div></td></tr>
+    <tr><td>🎯 Bowling Strength</td><td class="pts">6</td><td>The 4 bowling options: wicket-takers, economy, death bowling.
+      <div class="bands"><b>5–6</b> four strong options · <b>3–4</b> good · <b>1–2</b> weak overs · <b>0</b> weak</div></td></tr>
+    <tr><td>🧤 Wicketkeeping &amp; Fielding</td><td class="pts">3</td><td>The keeper's quality behind the stumps and with the bat; gun fielders and safe hands.
+      <div class="bands"><b>3</b> top keeper and fielders · <b>2</b> good · <b>1</b> average · <b>0</b> weak</div></td></tr>
+    <tr><td style="color:var(--ink)">Total</td><td class="pts" style="color:var(--navy)">100</td><td style="font-size:8.5pt;color:var(--muted)">60 automatic + 40 from each judge</td></tr>
   </tbody>
 </table>
-<div class="tip"><b>Where to find the facts:</b> the <b>Judging</b> page fills in ⭐ Average Player Rating and 💰 Value for Money for every team by itself. <b>Reports</b> has each team's squad, prices, spend and a Team analysis; the hints under the judges' boxes come from the ratings and prices. They are a guide: the judges decide their 60 points.</div>
+
 
 <div class="page-break"></div>
 
 <h2>How the winning team is decided</h2>
+<div class="tip"><b>Where to find the facts:</b> the <b>Judging</b> page fills in the four 🤖 criteria for every team by itself. <b>Reports</b> has each team's squad, prices, spend and a Team analysis; the hints under the judges' boxes come from the ratings and prices. They are a guide: the judges decide their 40 points.</div>
 <div class="flow">
   <div><span class="t">1. After the hammer</span>The auction ends when every squad has its 7 players. Open <b>Reports</b> on the projector or a laptop.</div>
   <div><span class="t">2. Team pitch (optional)</span>Each team owner gets 1 minute to explain their squad and plan.</div>
-  <div><span class="t">3. Score alone</span>Each judge scores every team on their 6 criteria, without discussing scores first.</div>
-  <div><span class="t">4. Enter the scores</span>On the <b>Judging</b> page, each judge has a tab; type in the 6 judged scores. The 2 automatic ones are already there.</div>
+  <div><span class="t">3. Score alone</span>Each judge scores every team on their 5 criteria, without discussing scores first.</div>
+  <div><span class="t">4. Enter the scores</span>On the <b>Judging</b> page, each judge has a tab; type in the 5 judged scores. The 4 automatic ones are already there.</div>
   <div><span class="t">5. Standings</span>The app averages the judges who scored. The highest average wins.</div>
 </div>
 
@@ -142,35 +144,36 @@
 <p>Judge: <span class="line"></span> &nbsp;&nbsp; Signature: <span class="line" style="min-width:120pt"></span> &nbsp;&nbsp; Date: <span class="line" style="min-width:70pt"></span></p>
 <table class="sheet">
   <thead><tr>
-    <th style="width:20%">Team</th>
+    <th style="width:19%">Team</th>
     <th style="background:#fff3cf">⭐ Avg rating<span class="max">/ 20 · app</span></th>
     <th style="background:#fff3cf">💰 Value<span class="max">/ 20 · app</span></th>
+    <th style="background:#fff3cf">⚖️ Combo<span class="max">/ 10 · app</span></th>
+    <th style="background:#fff3cf">🔀 Bat–bowl<span class="max">/ 10 · app</span></th>
     <th>💪 Strength<span class="max">/ 15</span></th>
-    <th>⚖️ Balance<span class="max">/ 15</span></th>
     <th>🔄 Versatility<span class="max">/ 10</span></th>
-    <th>🏏 Batting<span class="max">/ 8</span></th>
-    <th>🎯 Bowling<span class="max">/ 8</span></th>
-    <th>🧤 WK &amp; field<span class="max">/ 4</span></th>
+    <th>🏏 Batting<span class="max">/ 6</span></th>
+    <th>🎯 Bowling<span class="max">/ 6</span></th>
+    <th>🧤 WK &amp; field<span class="max">/ 3</span></th>
     <th style="background:#fff3cf">TOTAL<span class="max">/ 100</span></th>
   </tr></thead>
   <tbody>
-    <tr><td>Chennai Super Kings</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Delhi Capitals</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Gujarat Titans</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Kolkata Knight Riders</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Lucknow Super Giants</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Mumbai Indians</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Punjab Kings</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Rajasthan Royals</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Royal Challengers Bengaluru</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    <tr><td>Sunrisers Hyderabad</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Chennai Super Kings</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Delhi Capitals</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Gujarat Titans</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Kolkata Knight Riders</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Lucknow Super Giants</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Mumbai Indians</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Punjab Kings</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Rajasthan Royals</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Royal Challengers Bengaluru</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td>Sunrisers Hyderabad</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
   </tbody>
 </table>
 
 <h3>Quick reminders</h3>
 <ul>
-  <li><b>From the app</b> (copy from the Judging page): <b>Avg rating 20</b> 1 point per rating point above 75 · <b>Value 20</b> high-rated players for low money (fair price = 10)</li>
-  <li><b>You score:</b> <b>Strength 15</b> match winners, no weak link · <b>Balance 15</b> bat vs bowl, left/right, pace/spin · <b>Versatility 10</b> · <b>Batting 8</b> · <b>Bowling 8</b> · <b>WK &amp; field 4</b></li>
+  <li><b>From the app</b> (copy from the Judging page): <b>Avg rating 20</b> · <b>Value 20</b> high-rated players for low money · <b>Combo 10</b> all role groups equally strong · <b>Bat–bowl 10</b> left/right, pace/spin, bat vs bowl</li>
+  <li><b>You score:</b> <b>Strength 15</b> match winners, no weak link · <b>Versatility 10</b> multi-skill players · <b>Batting 6</b> · <b>Bowling 6</b> · <b>WK &amp; field 3</b></li>
   <li>Winner: highest <b>average</b> total. Ties: Avg rating, then Value, then Strength, then a judges' vote.</li>
 </ul>
 <p>Notes:</p>
