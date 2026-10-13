@@ -1448,7 +1448,7 @@ const TEAM_COLORS = ['#FF7EB6', '#FD4B4B', '#9DDD90', '#2EC4B6', '#7BD3F7', '#C7
 const AUTO_SETS = [
   ['marquee', 'MARQUEE PLAYERS'], ['bat', 'BATTERS'], ['fast', 'FAST BOWLERS'], ['spin', 'SPINNERS'],
   ['ar', 'ALL-ROUNDERS'], ['wk', 'WICKETKEEPERS'], ['uncapped', 'UNCAPPED PLAYERS'], ['overseas', 'OVERSEAS PLAYERS'],
-  ['mystery', 'MYSTERY PLAYERS'], ['wild', 'WILD CARD PLAYERS'],
+  ['mystery', 'MYSTERY PLAYERS'],
 ];
 
 function defaultRules() {
@@ -1465,9 +1465,9 @@ function defaultRules() {
     unsoldCut: 0,
     currency: { sym: '₹', unit: 'Cr' },
     mystery: { hide: 'all', reveal: 'after', max: 5, auto: true, every: 6 },   // reveal: always 'after' (on SOLD)
-    wild: { max: 4, when: 'any', afterN: 20, specialBase: false, base: cr2l(2), rtm: false },
+    wild: { max: 0, when: 'any', afterN: 20, specialBase: false, base: cr2l(2), rtm: false },   // wild cards are not used: every surprise is a mystery player
     surprise: { on: true, min: 4, max: 8, mysteryPct: 50, spread: true },   // spread: space surprises evenly through the whole auction
-    plan: { BAT: 2, AR: 2, WK: 1, BOWL: 2, total: 150, extra: 10, mystery: 5, wild: 4, secs: 60, exact: true },   // exactly 7 per team (1 WK, 2 BAT, 2 AR, 2 BOWL); total: 150 players + the 9 surprises; extra: spare per set when there is no total   // exact: squads are exactly the plan   // secs: seconds per player, for the time estimate
+    plan: { BAT: 2, AR: 2, WK: 1, BOWL: 2, total: 150, extra: 10, mystery: 9, wild: 0, secs: 60, exact: true },   // exactly 7 per team (1 WK, 2 BAT, 2 AR, 2 BOWL); total: 150 players + the 9 surprises; extra: spare per set when there is no total   // exact: squads are exactly the plan   // secs: seconds per player, for the time estimate
     setOverseas: false,
     sound: true,
   };
@@ -1523,6 +1523,22 @@ function migrate(s) {
   delete s.live.timer;
   s.players = (s.players || []).map(p => newPlayer(p));
   s.players.forEach(p => { if (p.status !== 'sold') p.base = base25(p.base); });   // base prices in ₹0.25 Cr steps
+  // wild cards are not used any more: every wild card becomes a mystery player
+  if (s.players.some(p => p.wild) || (s.rules.wild && s.rules.wild.max) || (s.rules.plan && s.rules.plan.wild)) {
+    let mn = Math.max(0, ...s.players.map(p => (String(p.mcode || '').match(/(\d+)/) || [0, 0])[1] * 1));
+    s.players.filter(p => p.wild).forEach(p => {
+      p.wild = false; p.wcode = ''; p.mystery = true; p.mcode = 'M-' + pad2(++mn);
+      if (!p.clues || !p.clues.length) p.clues = autoClues(p);
+      if (p.surprised || p.status === 'sold') p.revealed = true;   // already on the block or bought as a wild card: shown openly
+    });
+    const pl = s.rules.plan || {};
+    if (pl.wild) { pl.mystery = (pl.mystery || 0) + pl.wild; pl.wild = 0; }
+    s.rules.mystery.max = (s.rules.mystery.max || 0) + ((s.rules.wild && s.rules.wild.max) || 0);
+    if (s.surprise && s.surprise.n) { s.surprise.n.mystery = (s.surprise.n.mystery || 0) + (s.surprise.n.wild || 0); s.surprise.n.wild = 0; }
+    if (s.surprise && s.surprise.next && s.surprise.next.kind === 'wild') s.surprise.next.kind = 'mystery';
+  }
+  s.rules.wild.max = 0; s.rules.surprise.mysteryPct = 100;
+  s.awards && delete s.awards.wild;
   s.teams.forEach(t => { if (!t.adjust) t.adjust = []; });
   fixFranchises(s);
   if (!s.judging || !Array.isArray(s.judging.judges)) s.judging = b.judging;
@@ -1903,12 +1919,12 @@ function splitLR(n, w) {
   raw.map((v, i) => [v - out[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { out[i]++; left--; } });
   return out;
 }
+const mysHome = i => (i < 5 ? i % 4 : (i - 4) % 4);   // the set mystery player #i is drawn from
 function roleSetSizes(pl = S.rules.plan, nTeams = S.teams.length) {
   const R = S.rules, needs = ROLE_SETS.map(([r]) => (pl[r] || 0) * nTeams), needSum = sum(needs);
   // surprise players are added on top, in the sets buildRoleSets draws them from (mystery #i in set i, wild card #i in set i+1)
   const sur = ROLE_SETS.map(() => 0);
-  for (let i = 0; i < (pl.mystery || 0); i++) sur[i % 4]++;
-  for (let i = 0; i < (pl.wild || 0); i++) sur[(i + 1) % 4]++;
+  for (let i = 0; i < (pl.mystery || 0); i++) sur[mysHome(i)]++;
   // pl.total: players in the auction (not counting surprises); the spare places are shared in proportion to each role's need
   const extras = pl.total ? splitLR(Math.max(0, pl.total - needSum), needSum ? needs : needs.map(() => 1)) : needs.map(() => pl.extra || 0);
   const z = ROLE_SETS.map(([r, name], i) => {
@@ -1952,8 +1968,7 @@ function buildRoleSets(pl = S.rules.plan, rnd = rng(SURPRISE_SEED)) {
   // surprise players go round the four sets: mystery #1 in set 1, #2 in set 2 …, wild card #1 in set 2, #2 in set 3 …,
   // so every set gets both kinds (drawn inside the set, higher ratings more likely; the same each build unless rnd says otherwise)
   const want = [];
-  for (let i = 0; i < pl.mystery; i++) want.push(['mystery', i % 4]);
-  for (let i = 0; i < pl.wild; i++) want.push(['wild', (i + 1) % 4]);
+  for (let i = 0; i < pl.mystery; i++) want.push(['mystery', mysHome(i)]);
   const surprise = new Map();
   for (const [kind, home] of want) {
     for (let d = 0; d < 4; d++) {
@@ -1985,7 +2000,7 @@ function applyRoleSets(rnd) {
   const pl = S.rules.plan, res = buildRoleSets(pl, rnd);
   S.players = res.players; S.sets = res.sets;
   S.queue = []; S.live = emptyLive(); S.lots = []; S.paceFrom = 0; S.wildUsed = []; S.sample = false; S.started = false;
-  S.rules.mystery.max = pl.mystery; S.rules.wild.max = pl.wild;   // every surprise player gets to pop in
+  S.rules.mystery.max = pl.mystery; S.rules.wild.max = 0; S.rules.surprise.mysteryPct = 100;   // every surprise player gets to pop in, all as mystery players
   if (pl.exact !== false) {   // exact squads: every team buys exactly the plan, role by role
     const per = ROLES.reduce((a, r) => a + (pl[r] || 0), 0);
     S.rules.minSquad = S.rules.maxSquad = per;
@@ -2008,7 +2023,7 @@ function loadRoleSetsFromSetup() {
   const total = sum(z.map(x => x.size));
   confirmBox({
     title: 'BUILD THE 4 SETS', tone: 'gold', ok: 'BUILD SETS',
-    html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${total} players in 4 sets (${z.map(x => `${x.name.toLowerCase()} ${x.size}`).join(', ')}), including ${pl.mystery} mystery players and ${pl.wild} wild cards that pop in by surprise?</p><p class="muted">Players come up at random from the whole list, or the auctioneer picks each one (✋ I pick above the queue in the control room). ${pl.exact !== false ? `Every team buys exactly ${ROLES.reduce((a, r) => a + (pl[r] || 0), 0)} players: ${ROLE_SETS.map(([r, nm]) => `${pl[r] || 0} ${nm.toLowerCase()}`).join(', ')}.` : `Each team's role limit becomes one above these numbers (${ROLE_SETS.map(([r, nm]) => `${(pl[r] || 0) + 1} ${nm.toLowerCase()}`).join(', ')}), so no team can take so many of one role that others run short.`}</p>`,
+    html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${total} players in 4 sets (${z.map(x => `${x.name.toLowerCase()} ${x.size}`).join(', ')}), including ${pl.mystery} mystery players that pop in by surprise?</p><p class="muted">Players come up at random from the whole list, or the auctioneer picks each one (✋ I pick above the queue in the control room). ${pl.exact !== false ? `Every team buys exactly ${ROLES.reduce((a, r) => a + (pl[r] || 0), 0)} players: ${ROLE_SETS.map(([r, nm]) => `${pl[r] || 0} ${nm.toLowerCase()}`).join(', ')}.` : `Each team's role limit becomes one above these numbers (${ROLE_SETS.map(([r, nm]) => `${(pl[r] || 0) + 1} ${nm.toLowerCase()}`).join(', ')}), so no team can take so many of one role that others run short.`}</p>`,
     onOk: () => {
       commit(() => applyRoleSets(), { ck: 'Build 4 sets' });
       if (UI.page === 'setup') PAGES.setup.build();
@@ -2043,19 +2058,20 @@ function iplPlayers(o, rnd = Math.random) {
 }
 
 /* How many players to put in the main auction by default */
-const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players and wild cards
+const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players
 
 /* ---------- Sample auction (clearly marked; replace in Setup) ---------- */
 const SAMPLE_V = 9;   // bump to rebuild practice auctions saved by older versions
 /* The fixed auction: the 4-set player list (the same 150 players + 9 surprises every time), not started.
    A fresh browser starts with it, and it stays until the auctioneer changes the players in Setup. */
+const FIXED_V = 2;   // 2: 9 mystery players, no wild cards
 function buildFixed() {
   const s = blankState();
   s.event = { name: 'College IPL Auction 2026', host: '', date: '' };
   s.teams = FRANCHISES.map((f, i) => newTeam(i));
   S = s;
   applyRoleSets();
-  S.sample = false; S.started = false; S.fixed = true;
+  S.sample = false; S.started = false; S.fixed = true; S.fixedV = FIXED_V;
   S.live = emptyLive();
   return S;
 }
@@ -3619,10 +3635,10 @@ function specialButtonsHTML() {
   const sugg = alertPresets().some(x => x.sugg);
   const nx = st.next ? `${st.next.kind === 'wild' ? '🃏' : '🕵️'} ${esc(st.next.p.name)}` : '';
   let head, sub;
-  if (swap) { const cp = lotPlayer(); head = (cp.wild ? '🃏 Wild card' : '🕵️ Mystery player') + ' on the block'; sub = 'Not the one you wanted? Change it before the first bid'; }
-  else if (st.none) { head = 'No surprises left'; sub = 'Every mystery and wild card player has been used'; }
+  if (swap) { const cp = lotPlayer(); head = '🕵️ Mystery player on the block'; sub = 'Not the one you wanted? Change it before the first bid'; }
+  else if (st.none) { head = 'No surprises left'; sub = 'Every mystery player has been used'; }
   else if (st.off) { head = 'Automatic surprises are off'; sub = `<span class="nx">Next: ${nx}</span> · you can still pop one in`; }
-  else { head = st.inN == null ? 'Next surprise in a later set' : st.inN <= 1 ? 'Surprise after this player' : 'Next surprise in ' + plural(st.inN, 'player'); sub = `<span class="nx">Next: ${nx}</span> · 🕵️ ${st.mys} · 🃏 ${st.wild} left`; }
+  else { head = st.inN == null ? 'Next surprise in a later set' : st.inN <= 1 ? 'Surprise after this player' : 'Next surprise in ' + plural(st.inN, 'player'); sub = `<span class="nx">Next: ${nx}</span> · 🕵️ ${st.mys} left`; }
   return `<div class="cr-special">
     <button class="surp${swap || (!st.off && !st.none && st.inN != null && st.inN <= 1) ? ' soon' : ''}" data-act="surprise-pick" title="Only you can see this. Click to change the mystery or wild card player, or pop one in now."><span class="surp-ic">🎲</span><span class="surp-t"><b>${head}</b><small>${sub}</small>${st.none && !swap ? '' : '<span class="chg">CHANGE ▸</span>'}</span></button>
     <button class="btn ghost" data-act="alerts" title="Breaking news alert (A)">📢${sugg ? '<span class="warn">●</span>' : ''} <kbd>A</kbd></button>
@@ -3656,7 +3672,7 @@ function startScreenHTML() {
   const checks = [
     [S.teams.length >= 2, `${plural(S.teams.length, 'team')} ready`, 'no'],
     [inQ > 0, `${plural(inQ, 'player')} in the queue`, 'no'],
-    [!R.surprise.on || pool > 0, R.surprise.on ? `${plural(pool, 'surprise player')} waiting (🕵️ mystery and 🃏 wild card)` : 'Automatic surprises are off', 'meh'],
+    [!R.surprise.on || pool > 0, R.surprise.on ? `${plural(pool, 'mystery player')} waiting` : 'Automatic surprises are off', 'meh'],
   ];
   return `<div class="bp"><div class="start-screen">
     <span class="lbl">READY WHEN YOU ARE</span>
@@ -3771,7 +3787,7 @@ const FEED_F = {
   results: e => ['sold', 'rtm', 'unsold', 'wild', 'reveal', 'unsold_round', 'direct', 'begin'].includes(e.type),
   admin: e => ['correction', 'undo', 'restore', 'withdraw', 'direct', 'alert', 'award'].includes(e.type),
 };
-const PFILTERS = [['all', 'All'], ['available', 'Available'], ['sold', 'Sold'], ['unsold', 'Unsold'], ['BAT', 'Batters'], ['BOWL', 'Bowlers'], ['AR', 'All-rounders'], ['WK', 'Wicketkeepers'], ['overseas', 'Overseas'], ['marquee', 'Marquee'], ['uncapped', 'Uncapped'], ['mystery', 'Mystery'], ['wild', 'Wild Card'], ['withdrawn', 'Withdrawn']];
+const PFILTERS = [['all', 'All'], ['available', 'Available'], ['sold', 'Sold'], ['unsold', 'Unsold'], ['BAT', 'Batters'], ['BOWL', 'Bowlers'], ['AR', 'All-rounders'], ['WK', 'Wicketkeepers'], ['overseas', 'Overseas'], ['marquee', 'Marquee'], ['uncapped', 'Uncapped'], ['mystery', 'Mystery'], ['withdrawn', 'Withdrawn']];
 function pfilter(f) {
   switch (f) {
     case 'available': return p => p.status === 'available';
@@ -3885,7 +3901,6 @@ function statsHTML() {
     ${tile('🔨 Total sold', st.sold, plural(st.bids, 'bid') + ' placed')}
     ${tile('❌ Total unsold', st.unsold, st.pool + ' in the unsold pool')}
     ${tile('🕵️ Mystery players sold', st.mysterySold, 'of ' + S.players.filter(p => p.mystery).length + ' mystery players')}
-    ${tile('🃏 Wild cards sold', st.wildSold, S.wildUsed.length + ' introduced so far')}
   </div>`;
 }
 
@@ -4080,10 +4095,10 @@ function drawSurprisePick() {
     const tag = kind === 'wild' ? '🃏 WILD CARD' : '🕵️ MYSTERY';
     return `<button class="mini${on ? ' on' : ''}" data-act="sp-pick" data-pid="${esc(p.id)}" data-kind="${kind}" ${ok ? '' : 'disabled title="No ' + (kind === 'wild' ? 'wild card' : 'mystery') + ' slots left. Raise the limit in Setup → Surprises."'}>${on ? '✓ ' : ''}${tag}</button>`;
   };
-  const row = p => `<tr class="${nx && !swap && nx.p.id === p.id ? 'sp-on' : ''}"><td class="pid">${p.wild ? '🃏 ' + esc(p.wcode || 'WILD') : p.mystery ? '🕵️ ' + esc(p.mcode || 'M-?') : '#' + esc(pnum(p))}</td><td class="pname">${esc(p.name)}</td><td>${roleText(p)}</td><td class="r">${esc(p.rating)}</td><td class="r money">${money(p.base)}</td><td class="r"><div class="acts">${btn(p, 'mystery', okM)}${btn(p, 'wild', okW)}</div></td></tr>`;
+  const row = p => `<tr class="${nx && !swap && nx.p.id === p.id ? 'sp-on' : ''}"><td class="pid">${p.wild ? '🃏 ' + esc(p.wcode || 'WILD') : p.mystery ? '🕵️ ' + esc(p.mcode || 'M-?') : '#' + esc(pnum(p))}</td><td class="pname">${esc(p.name)}</td><td>${roleText(p)}</td><td class="r">${esc(p.rating)}</td><td class="r money">${money(p.base)}</td><td class="r"><div class="acts">${btn(p, 'mystery', okM)}</div></td></tr>`;
   patch(el, list.length
-    ? `<table class="tbl"><thead><tr><th>Code</th><th>Player</th><th>Role</th><th class="r">Rating</th><th class="r">Base</th><th class="r">Use as</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>${!q.trim() ? '<p class="muted" style="margin-top:8px">These are the players waiting in the surprise pool. Search to turn any other available player into a mystery or wild card.</p>' : ''}`
-    : `<p class="muted">${q.trim() ? 'No available player matches.' : 'The surprise pool is empty. Search for any available player to make them a mystery or wild card.'}</p>`);
+    ? `<table class="tbl"><thead><tr><th>Code</th><th>Player</th><th>Role</th><th class="r">Rating</th><th class="r">Base</th><th class="r">Use as</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>${!q.trim() ? '<p class="muted" style="margin-top:8px">These are the players waiting in the surprise pool. Search to turn any other available player into a mystery player.</p>' : ''}`
+    : `<p class="muted">${q.trim() ? 'No available player matches.' : 'The surprise pool is empty. Search for any available player to make them a mystery player.'}</p>`);
 }
 function makeSurprise(p, kind) {
   if (kind === 'wild') { p.wild = true; p.mystery = false; if (!p.wcode) p.wcode = nextCode('WC-', 'wcode'); }
@@ -4227,7 +4242,7 @@ function openSampleInfo() {
   openModal({
     id: 'sample', tone: 'gold', title: 'SAMPLE AUCTION',
     body: `<p>This is a practice auction: the 10 IPL franchises, run by made-up college owners, bidding for the real players sold at the IPL 2026 auction and the best IPL players of 2013–2026. It is 40 players in, with a live bidding war on the current player.</p>
-      <p>Try it. Tap a team to bid and press <kbd>S</kbd> to sell. A mystery player or wild card pops in on its own right after this sale.</p>
+      <p>Try it. Tap a team to bid and press <kbd>S</kbd> to sell. A mystery player pops in on its own right after this sale.</p>
       <p>When you are ready, set up your own event in Setup. “Start fresh” removes all sample teams and players.</p>`,
     foot: `<button class="btn ghost" data-act="modal-close">KEEP EXPLORING</button><button class="btn ghost" data-act="reset-results">KEEP TEAMS & PLAYERS, CLEAR RESULTS</button><button class="btn gold" data-act="fresh-start">START FRESH</button>`,
   });
@@ -4287,7 +4302,7 @@ function playersFiltered() {
 PAGES.players = {
   build() {
     $('#pg-players').innerHTML = `<div class="pg">
-      <div class="pg-head"><div><h1>Players</h1><p>The full database. Edit details, mark mystery and wild card players, and sort players into auction sets.</p></div>
+      <div class="pg-head"><div><h1>Players</h1><p>The full database. Edit details, mark mystery players, and sort players into auction sets.</p></div>
         <div class="pg-actions">
           <button class="btn gold" data-act="pl-add">+ ADD PLAYER</button>
           <label class="btn ghost" style="position:relative">IMPORT CSV / EXCEL<input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" data-ch="import-file" style="position:absolute;inset:0;opacity:0;cursor:pointer" aria-label="Import players from CSV or Excel"></label>
@@ -4312,7 +4327,7 @@ PAGES.players = {
     const chosen = new Set(UI.sel);
     patch($('#plBulk'), chosen.size ? `<div class="bulkbar"><b>${chosen.size} selected</b>
       <select data-ch="bulk-set" aria-label="Move selected to set"><option value="">Move to set…</option>${S.sets.map(s => `<option value="${esc(s.id)}">${esc(setLabel(s))}</option>`).join('')}</select>
-      <button class="mini" data-act="bulk" data-op="mystery">🕵️ Make mystery</button><button class="mini" data-act="bulk" data-op="wild">🃏 Make wild card</button><button class="mini" data-act="bulk" data-op="normal">Make normal</button>
+      <button class="mini" data-act="bulk" data-op="mystery">🕵️ Make mystery</button><button class="mini" data-act="bulk" data-op="normal">Make normal</button>
       <button class="mini" data-act="bulk" data-op="queue">Add to queue</button><button class="mini" data-act="bulk" data-op="withdraw">⚫ Withdraw</button><button class="mini" data-act="bulk" data-op="delete">Delete</button><button class="mini" data-act="bulk" data-op="clear">Clear selection</button></div>` : '');
     const all = $('#plAll'); if (all) all.checked = list.length > 0 && list.every(p => chosen.has(p.id));
     const sname = id => { const s = S.sets.find(x => x.id === id); return s ? s.name : '—'; };
@@ -4355,14 +4370,14 @@ function openPlayerEditor(pid) {
         <label class="f"><span>Category</span><select id="peCat">${['Marquee', 'Capped', 'Uncapped'].map(c => `<option ${p.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
         <label class="f"><span>Overseas</span><select id="peOs"><option value="0">No</option><option value="1" ${p.overseas ? 'selected' : ''}>Yes 🌎</option></select></label>
         <label class="f"><span>Auction set</span><select id="peSet">${setOpts}</select></label>
-        <label class="f"><span>Special</span><select id="peKind" data-ch="pe-kind"><option value="normal">Normal player</option><option value="mystery" ${kind === 'mystery' ? 'selected' : ''}>🕵️ Mystery player</option><option value="wild" ${kind === 'wild' ? 'selected' : ''}>🃏 Wild card</option></select></label>
+        <label class="f"><span>Special</span><select id="peKind" data-ch="pe-kind"><option value="normal">Normal player</option><option value="mystery" ${kind === 'mystery' ? 'selected' : ''}>🕵️ Mystery player</option></select></label>
       </div>
       <datalist id="bowlList"><option>Right-arm fast</option><option>Right-arm fast-medium</option><option>Right-arm medium</option><option>Left-arm fast</option><option>Left-arm medium</option><option>Right-arm off-break</option><option>Right-arm leg-break</option><option>Left-arm orthodox</option><option>Left-arm wrist-spin</option></datalist>
       <div><span class="lbl">Special abilities</span><div class="tagpick" id="peTags" style="margin-top:8px"></div>
         <label class="f" style="margin-top:8px"><span>Other tags <small>comma separated</small></span><input id="peTagX" type="text" value="${esc((p.tags || []).filter(t => !TAG_LIBRARY.includes(t)).join(', '))}"></label></div>
       <div id="peMys" class="form-grid" ${kind === 'mystery' ? '' : 'hidden'}><label class="f"><span>Mystery code</span><input id="peMcode" type="text" value="${esc(p.mcode)}" placeholder="M-05"></label>
         <label class="f span2"><span>Clues <small>one per line, shown in order</small></span><textarea id="peClues" rows="3">${esc((p.clues || []).join('\n'))}</textarea></label></div>
-      <div id="peWild" class="form-grid" ${kind === 'wild' ? '' : 'hidden'}><label class="f"><span>Wild card code</span><input id="peWcode" type="text" value="${esc(p.wcode)}" placeholder="WC-04"></label><p class="muted span2" style="align-self:end">Wild cards stay out of the normal queue until you introduce them with <kbd>W</kbd>.</p></div>`,
+`,
     foot: `${ex && ex.status !== 'sold' ? '<button class="btn line-red" data-act="pe-delete" style="margin-right:auto">DELETE PLAYER</button>' : ''}<button class="btn ghost" data-act="modal-close">CANCEL <kbd>Esc</kbd></button><button class="btn gold" data-act="pe-save">SAVE <kbd>Enter</kbd></button>`,
     onEnter: savePlayerEditor,
   });
@@ -4400,7 +4415,6 @@ function savePlayerEditor() {
   };
   data.bowlKind = bowlKindOf(data.bowl);
   if (data.mystery) { data.mcode = String(v('peMcode') || '').trim() || nextCode('M-', 'mcode'); data.clues = String(v('peClues') || '').split('\n').map(s => s.trim()).filter(Boolean); }
-  if (data.wild) data.wcode = String(v('peWcode') || '').trim() || nextCode('WC-', 'wcode');
   commit(() => {
     if (orig) {
       const p = S.players.find(x => x.id === orig);
@@ -4471,7 +4485,7 @@ function reportHTML(t) {
     </div>
   </article>`;
 }
-const EXPORTS = [['transactions', 'Complete transaction history'], ['squads', 'Final squads'], ['budgets', 'Team budgets'], ['prices', 'Player sale prices'], ['unsold', 'Unsold players'], ['mystery', 'Mystery player results'], ['wild', 'Wild card results'], ['stats', 'Auction statistics'], ['judging', 'Final judging scores & awards']];
+const EXPORTS = [['transactions', 'Complete transaction history'], ['squads', 'Final squads'], ['budgets', 'Team budgets'], ['prices', 'Player sale prices'], ['unsold', 'Unsold players'], ['mystery', 'Mystery player results'], ['stats', 'Auction statistics'], ['judging', 'Final judging scores & awards']];
 PAGES.results = {
   build() {
     $('#pg-results').innerHTML = `<div class="pg">
@@ -4483,7 +4497,7 @@ PAGES.results = {
       <section class="card"><h2>Auction statistics</h2><div id="resStats"></div></section>
       <div id="resReports" style="display:flex;flex-direction:column;gap:14px"></div>
       <section class="card"><h2>Unsold players</h2><div id="resUnsold"></div></section>
-      <div class="two-col"><section class="card"><h2>🕵️ Mystery players</h2><div id="resMys"></div></section><section class="card"><h2>🃏 Wild cards</h2><div id="resWild"></div></section></div>
+      <section class="card"><h2>🕵️ Mystery players</h2><div id="resMys"></div></section>
     </div>`;
   },
   update() {
@@ -4493,7 +4507,6 @@ PAGES.results = {
     patch($('#resUnsold'), uns.length ? `<table class="tbl"><thead><tr><th>ID</th><th>Player</th><th>Role</th><th class="r">Base price</th><th class="r">Highest bid</th></tr></thead><tbody>${uns.map(p => `<tr><td class="pid">${esc(p.id)}</td><td class="pname">${esc(p.name)}</td><td>${roleText(p)}</td><td class="r money">${money(p.base)}</td><td class="r money">${p.highBid ? money(p.highBid) : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">None.</p>');
     const res = list => list.length ? `<table class="tbl"><thead><tr><th>Code</th><th>Player</th><th>Status</th><th>Team</th><th class="r">Price</th></tr></thead><tbody>${list.map(p => `<tr><td class="pid">${esc(p.mcode || p.wcode || '')}</td><td class="pname">${esc(p.name)}</td><td>${statusPill(p)}</td><td>${p.status === 'sold' ? teamBadge(p.soldTo, { short: true }) : ''}</td><td class="r money">${p.status === 'sold' ? money(p.soldPrice) : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">None in this auction.</p>';
     patch($('#resMys'), res(S.players.filter(p => p.mystery)));
-    patch($('#resWild'), res(S.players.filter(p => p.wild)));
   },
 };
 
@@ -4517,7 +4530,7 @@ function standings() {
     return { t, per, avg, complete: per.every(x => x.complete) };
   }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1));
 }
-const AWARDS = [['champions', '🏆 Auction Champions'], ['value', '💎 Best Value Buy'], ['war', '🔥 Biggest Bidding War'], ['mystery', '🕵️ Best Mystery Player'], ['wild', '🃏 Best Wild Card'], ['purchase', '💰 Biggest Purchase'], ['funny', '😂 Funniest Purchase'], ['destroyer', '💀 Purse Destroyer'], ['bargain', '🤑 Biggest Bargain']];
+const AWARDS = [['champions', '🏆 Auction Champions'], ['value', '💎 Best Value Buy'], ['war', '🔥 Biggest Bidding War'], ['mystery', '🕵️ Best Mystery Player'], ['purchase', '💰 Biggest Purchase'], ['funny', '😂 Funniest Purchase'], ['destroyer', '💀 Purse Destroyer'], ['bargain', '🤑 Biggest Bargain']];
 function awardSuggestion(k) {
   const st = D().st, sold = S.players.filter(p => p.status === 'sold');
   const best = list => list.sort((a, b) => b.rating - a.rating)[0];
@@ -4611,7 +4624,7 @@ PAGES.admin = {
           <label class="f span-all"><span>Reason</span><input id="puR" type="text" placeholder="e.g. Late registration penalty"></label></div>
           <button class="btn gold" data-act="fix-purse" style="margin-top:10px">APPLY</button></section>
       </div>
-      <section class="card"><h2>Restore a previous state <small>Restore points are saved before every sale, unsold, wild card and correction.</small></h2><ul class="ck-list" id="ckList"></ul></section>
+      <section class="card"><h2>Restore a previous state <small>Restore points are saved before every sale, unsold, surprise and correction.</small></h2><ul class="ck-list" id="ckList"></ul></section>
       <section class="card"><h2>Audit trail <small>Corrections, undos and restores. Nothing is deleted.</small></h2><div id="audit"></div></section>
     </div>`;
   },
@@ -4725,10 +4738,10 @@ const SETUP = {
     const suggest = iplSuggest(), cnt = f => IPL.players.filter(f).length, n26 = cnt(x => x.s26);
     const pl = S.rules.plan, z = roleSetSizes(), perTeam = ROLES.reduce((a, r) => a + (pl[r] || 0), 0), nT = S.teams.length;
     const sets4 = `<section class="card" style="border-top:6px solid var(--green)"><h2>🗂 Auction in 4 sets <small>Batters, all-rounders, wicketkeepers and bowlers: enough for every team, plus spare players</small></h2>
-        <p>Set how many players of each role every team buys and how many players are in the auction; the spare places are shared between the sets in proportion to each role's need, and the mystery players and wild cards come on top. The default plan is an exact squad of 7 per team (1 wicketkeeper, 2 batters, 2 all-rounders and 2 bowlers), 150 players plus 5 mystery players and 4 wild cards. With <b>Exact squads</b> on, building the sets makes every team buy exactly these numbers. Each set is filled with the best rated players of that role from the ${IPL.players.length} in the list. The mystery players and wild cards are added to the sets (shown in the 🕵️🃏 column) and pop in by surprise.</p>
-        <div class="form-grid">${ROLE_SETS.map(([r, nm]) => fld(nm.charAt(0) + nm.slice(1).toLowerCase() + ' per team', 'rules.plan.' + r, 'int', { min: 0, max: 15 })).join('')}${fld('Players in the auction', 'rules.plan.total', 'int', { min: perTeam * nT, max: 400, hint: '+ the surprises' })}${fld('🕵️ Mystery players', 'rules.plan.mystery', 'int', { min: 0, max: 20 })}${fld('🃏 Wild cards', 'rules.plan.wild', 'int', { min: 0, max: 20 })}${fld('Seconds per player', 'rules.plan.secs', 'int', { min: 15, max: 300, hint: 'for the time estimate' })}</div>
+        <p>Set how many players of each role every team buys and how many players are in the auction; the spare places are shared between the sets in proportion to each role's need, and the mystery players come on top. The default plan is an exact squad of 7 per team (1 wicketkeeper, 2 batters, 2 all-rounders and 2 bowlers), 150 players plus 9 mystery players. With <b>Exact squads</b> on, building the sets makes every team buy exactly these numbers. Each set is filled with the best rated players of that role from the ${IPL.players.length} in the list. The mystery players are added to the sets (shown in the 🕵️ column) and pop in by surprise.</p>
+        <div class="form-grid">${ROLE_SETS.map(([r, nm]) => fld(nm.charAt(0) + nm.slice(1).toLowerCase() + ' per team', 'rules.plan.' + r, 'int', { min: 0, max: 15 })).join('')}${fld('Players in the auction', 'rules.plan.total', 'int', { min: perTeam * nT, max: 400, hint: '+ the surprises' })}${fld('🕵️ Mystery players', 'rules.plan.mystery', 'int', { min: 0, max: 20 })}${fld('Seconds per player', 'rules.plan.secs', 'int', { min: 15, max: 300, hint: 'for the time estimate' })}</div>
         <div class="row" style="margin-top:10px">${fld('Exact squads: every team buys exactly these numbers (squad size and role limits are set from the plan)', 'rules.plan.exact', 'bool')}</div>
-        <div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Set</th><th class="r">Per team</th><th class="r">× ${nT} teams</th><th class="r">+ spare</th><th class="r">+ 🕵️🃏</th><th class="r">Players in the set</th><th class="r">🇮🇳 Indian</th><th class="r">🌎 Overseas</th><th class="r">In the list</th></tr></thead><tbody>
+        <div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Set</th><th class="r">Per team</th><th class="r">× ${nT} teams</th><th class="r">+ spare</th><th class="r">+ 🕵️</th><th class="r">Players in the set</th><th class="r">🇮🇳 Indian</th><th class="r">🌎 Overseas</th><th class="r">In the list</th></tr></thead><tbody>
           ${z.map((x, i) => `<tr><td class="pname">SET ${i + 1} · ${x.name}</td><td class="r">${pl[x.r] || 0}</td><td class="r">${x.need}</td><td class="r">${x.extra}</td><td class="r">${x.sur}</td><td class="r"><b>${x.size}</b></td><td class="r">${x.ind}</td><td class="r">${x.os}</td><td class="r ${x.size > x.avail ? 'bad' : 'muted'}">${x.avail}</td></tr>`).join('')}
           <tr><td class="pname">TOTAL</td><td class="r">${perTeam}</td><td class="r">${perTeam * nT}</td><td class="r">${sum(z.map(x => x.extra))}</td><td class="r">${sum(z.map(x => x.sur))}</td><td class="r"><b>${sum(z.map(x => x.size))}</b></td><td class="r">${sum(z.map(x => x.ind))}</td><td class="r">${sum(z.map(x => x.os))}</td><td></td></tr></tbody></table></div>
         ${(() => { const c = roleSetCheck(z); return `<p class="notice ${c.ok ? 'good' : 'bad'}" style="margin-top:10px">${c.ok ? '✅' : '⚠️'} ${c.ind} Indian players + ${Math.min(c.os, nT * S.rules.maxOverseas)} of the ${c.os} overseas players can be bought (each team takes at most ${S.rules.maxOverseas} overseas): ${c.usable} for the ${c.need} places in ${nT} squads of ${c.per}${c.per < S.rules.maxSquad ? ` (squads can grow to ${S.rules.maxSquad} from the spare players)` : ''}${c.ok ? `, with ${c.usable - c.need} to spare.` : `. That is ${c.need - c.usable} short: add spare players or lower the numbers.`}</p>`; })()}
@@ -4736,14 +4749,13 @@ const SETUP = {
         ${pl.exact !== false ? `<p class="notice info" style="margin-top:10px">Exact squads: building the sets makes every team buy exactly ${perTeam} players, ${ROLE_SETS.map(([r, nm]) => `${pl[r] || 0} ${(pl[r] || 0) === 1 ? ROLE_INFO[r].n.toLowerCase() : nm.toLowerCase()}`).join(', ')} (minimum and maximum squad ${perTeam}, and the same limits per role).</p>` : perTeam < S.rules.minSquad || perTeam > S.rules.maxSquad ? `<p class="notice bad" style="margin-top:10px">${perTeam} players per team in the sets, but squads must have ${S.rules.minSquad} to ${S.rules.maxSquad} players (Auction rules).</p>` : perTeam < S.rules.maxSquad ? `<p class="notice info" style="margin-top:10px">Every team gets ${perTeam} players (the plan); with the spare players and role limits one above the plan, teams can buy up to ${Math.min(S.rules.maxSquad, ROLES.reduce((a, r) => a + (pl[r] || 0) + 1, 0))}.</p>` : ''}${pl.exact === false && ROLES.some(r => (pl[r] || 0) < (S.rules.roleMin[r] || 0)) ? `<p class="notice" style="margin-top:10px">Some roles are below the minimum each team needs (Auction rules → Players per role).</p>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn green" data-act="sets4-load">🗂 BUILD THE 4 SETS</button><span class="muted">Replaces the current player list. Players then come up at random from the whole list (or you pick each one), and each team's limit per role becomes ${pl.exact !== false ? 'exactly' : 'one above'} the numbers here.</span></div></section>`;
     return sets4 + `<section class="card" style="border-top:6px solid var(--gold)"><h2>🏏 IPL players <small>${IPL.players.length} players: ${n26} from the IPL 2026 auction, ${cnt(x => x.pa)} from the IPL auctions of 2013–2022 and ${cnt(x => x.ip)} more who have played in the IPL since 2013</small></h2>
-        <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers): legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Every player is loaded by default; for a shorter auction, lower <b>Players in the main auction</b> and the best rated stay in. Only players from 2013 to 2026 are in the list: everyone sold at an IPL auction in those years or who played an IPL season since 2013. Players with IPL matches get their role, career stats and special-ability tags from the IPL match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players and wild cards are drawn from the same group. To decide yourself, press <b>✅ CHOOSE PLAYERS</b>: set how many players to keep, fill the list with the best rated or at random (by role, source or overseas if you like), and tick or untick anyone.</p>
+        <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers): legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Every player is loaded by default; for a shorter auction, lower <b>Players in the main auction</b> and the best rated stay in. Only players from 2013 to 2026 are in the list: everyone sold at an IPL auction in those years or who played an IPL season since 2013. Players with IPL matches get their role, career stats and special-ability tags from the IPL match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players are drawn from the same group. To decide yourself, press <b>✅ CHOOSE PLAYERS</b>: set how many players to keep, fill the list with the best rated or at random (by role, source or overseas if you like), and tick or untick anyone.</p>
         <div class="form-grid"><label class="f"><span>Players in the main auction</span><input id="iplMain" type="number" min="10" max="${IPL.players.length}" value="${suggest}"></label>
-          <label class="f"><span>Mystery players</span><input id="iplMys" type="number" min="0" max="30" value="8"></label>
-          <label class="f"><span>Wild cards</span><input id="iplWild" type="number" min="0" max="30" value="8"></label></div>
+          <label class="f"><span>Mystery players</span><input id="iplMys" type="number" min="0" max="30" value="16"></label></div>
         <div class="row" style="margin-top:12px"><button class="btn gold" data-act="ipl-load">LOAD IPL PLAYERS</button><button class="btn ghost" data-act="pick-players" title="Choose exactly which players to keep">✅ CHOOSE PLAYERS…</button><span class="muted">Replaces the current player list.</span></div>
         <p class="muted" style="margin-top:10px;font-size:13px">Data: <a href="https://www.kaggle.com/datasets/sunnyyadav754/ipl-auction-dataset-2026" target="_blank" rel="noopener">IPL Auction Dataset 2026</a> by Sunny Yadav on Kaggle (the 2026 auction list), the IPL Player Auction Dataset from start to now on Kaggle (the 2013–2022 auction players), and <a href="https://github.com/ritesh-ojha/IPL-DATASET" target="_blank" rel="noopener">IPL-DATASET</a> by Ritesh Ojha, MIT License (the 2008–2026 match data behind the career stats, and photo links).</p></section>
       <section class="card"><h2>Import players <small>CSV or Excel. The first row must be column names.</small></h2>
-        <div class="drop"><input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" data-ch="import-file" aria-label="Choose a CSV or Excel file"><b>Choose a CSV or Excel file</b><br>Columns we understand: Player ID, Name, Role, Batting, Bowling, Rating, Base Price, Category, Overseas, Tags, Mystery, Wild Card, Set, Clues, Photo URL.</div>
+        <div class="drop"><input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" data-ch="import-file" aria-label="Choose a CSV or Excel file"><b>Choose a CSV or Excel file</b><br>Columns we understand: Player ID, Name, Role, Batting, Bowling, Rating, Base Price, Category, Overseas, Tags, Mystery, Set, Clues, Photo URL.</div>
         <div class="row" style="margin-top:12px"><button class="btn ghost" data-act="csv-template">DOWNLOAD CSV TEMPLATE</button>
           <label class="btn ghost" style="position:relative">BULK PHOTOS<input type="file" accept="image/*" multiple data-ch="bulk-photos" style="position:absolute;inset:0;opacity:0;cursor:pointer" aria-label="Upload player photos"></label>
           <button class="btn ghost" data-act="photos-save" title="Find a photo for every player and save it inside the auction, so photos show without internet">📷 SAVE PHOTOS OFFLINE</button>
@@ -4752,14 +4764,14 @@ const SETUP = {
         <p class="muted">Photos load from the internet: the dataset's image link first, then Wikipedia. Before the event, press <b>SAVE PHOTOS OFFLINE</b> once with internet on; every photo it finds is stored in the auction and works without internet. Export a backup afterwards to keep them.</p></section>
       <section class="card"><h2>Database</h2><div class="stat-grid" style="padding:0">
         <div class="stat"><span>Players</span><b>${n}</b></div>${ROLES.map(r => `<div class="stat"><span>${ROLE_INFO[r].ic} ${ROLE_INFO[r].pl}</span><b>${by(r)}</b></div>`).join('')}
-        <div class="stat"><span>🌎 Overseas</span><b>${S.players.filter(p => p.overseas).length}</b></div><div class="stat"><span>🕵️ Mystery</span><b>${S.players.filter(p => p.mystery).length}</b></div><div class="stat"><span>🃏 Wild cards</span><b>${S.players.filter(p => p.wild).length}</b></div>
+        <div class="stat"><span>🌎 Overseas</span><b>${S.players.filter(p => p.overseas).length}</b></div><div class="stat"><span>🕵️ Mystery</span><b>${S.players.filter(p => p.mystery).length}</b></div>
       </div></section>`;
   },
   sets() {
     return `<section class="card"><h2>Player order <small>How the next player is picked.</small></h2>
         <div class="form-grid">${fld('Players come up', 'rules.order', 'select', { opts: [['random', 'At random from the whole pool'], ['sets', 'Set by set, random inside each set'], ['queue', 'Set by set, in player-number order'], ['manual', 'The auctioneer picks each player (🔍 pick or 🎲 random)']] })}</div>
         <div class="row" style="margin-top:10px">${fld('Keep each new player hidden on the projector until I press Enter (the last sale stays on screen meanwhile)', 'rules.curtain', 'bool')}</div>
-        <p style="margin-top:8px">Changing this reshuffles the queue. In every mode you can also pick the next player yourself (🔍 Pick, or press <kbd>K</kbd>) or bring a random one. With <b>The auctioneer picks each player</b>, the block waits for your pick after every result. Mystery and wild card players always pop in by surprise.</p></section>
+        <p style="margin-top:8px">Changing this reshuffles the queue. In every mode you can also pick the next player yourself (🔍 Pick, or press <kbd>K</kbd>) or bring a random one. With <b>The auctioneer picks each player</b>, the block waits for your pick after every result. Mystery players always pop in by surprise.</p></section>
       <section class="card"><h2>Auction sets <small>Used by “Set by set” order and for set announcements.</small></h2>
         <div class="row" style="margin-bottom:10px">${fld('Put overseas players in their own set when sets are auto-built', 'rules.setOverseas', 'bool')}</div>
         <div class="row" style="margin-bottom:12px"><button class="btn gold sm" data-act="set-auto">AUTO-BUILD SETS FROM PLAYER DATA</button><button class="btn ghost sm" data-act="set-new">+ NEW CUSTOM SET</button><button class="btn ghost sm" data-act="q-rebuild">REBUILD THE QUEUE FROM SETS</button></div>
@@ -4775,13 +4787,12 @@ const SETUP = {
     const R = S.rules, mys = S.players.filter(p => p.mystery), wild = S.players.filter(p => p.wild);
     const radio = (path, val, label, desc) => `<label class="check" style="align-items:flex-start"><input type="radio" name="${path}" data-bind="${path}" data-t="str" value="${val}" ${getPath(S, path) === val ? 'checked' : ''}><span><b>${label}</b><br><span class="muted">${desc}</span></span></label>`;
     const sn = S.surprise.n || {};
-    return `<section class="card" style="border-top:6px solid var(--gold)"><h2>🎲 Surprises <small>Mystery players and wild cards pop into the auction on their own, at random moments.</small></h2>
+    return `<section class="card" style="border-top:6px solid var(--gold)"><h2>🎲 Surprises <small>Mystery players pop into the auction on their own, at random moments.</small></h2>
         <div class="row" style="margin-bottom:12px">${fld('Pop in surprises automatically', 'rules.surprise.on', 'bool')}</div>
         ${R.surprise.on ? `<div class="row" style="margin-bottom:12px">${fld('Spread them evenly through the whole auction (the gap follows how many players and surprises are left)', 'rules.surprise.spread', 'bool')}</div><div class="form-grid">${R.surprise.spread === false ? fld('Surprise after at least', 'rules.surprise.min', 'int', { hint: 'players', min: 1 }) + fld('…and at most', 'rules.surprise.max', 'int', { hint: 'players', min: 1 }) : ''}
-          ${fld('What pops in', 'rules.surprise.mysteryPct', 'select', { vt: 'int', opts: [[50, 'Mystery or wild card, 50/50'], [75, 'Mostly mystery players'], [25, 'Mostly wild cards'], [100, 'Only mystery players'], [0, 'Only wild cards']] })}
-          ${fld('Mystery players allowed', 'rules.mystery.max', 'int', { min: 0 })}${fld('Wild cards allowed', 'rules.wild.max', 'int', { min: 0 })}</div>` : ''}
-        <p style="margin-top:12px">So far: 🕵️ ${sn.mystery || 0} mystery and 🃏 ${sn.wild || 0} wild card. Waiting in the pool: ${surprisePool('mystery').length} mystery and ${surprisePool('wild').length} wild card players.</p>
-        <p class="muted">Players marked Mystery or Wild card on the Players page wait in the surprise pool and never join the normal queue. Only the control room shows when the next one is due and who it is; click that box to change the player or pop one in now.</p></section>
+          ${fld('Mystery players allowed', 'rules.mystery.max', 'int', { min: 0 })}</div>` : ''}
+        <p style="margin-top:12px">So far: 🕵️ ${sn.mystery || 0} mystery players. Waiting in the pool: ${surprisePool('mystery').length}.</p>
+        <p class="muted">Players marked Mystery on the Players page wait in the surprise pool and never join the normal queue. Only the control room shows when the next one is due and who it is; click that box to change the player or pop one in now.</p></section>
       <section class="card" style="border-top:6px solid var(--purple)"><h2>🕵️ Mystery players <small>A player whose identity stays hidden on the projector until a team buys them.</small></h2>
         <div class="two-col"><div style="display:flex;flex-direction:column;gap:10px"><span class="lbl">What is hidden</span>
           ${radio('rules.mystery.hide', 'name', 'Name only', 'Photo, role and rating are visible.')}${radio('rules.mystery.hide', 'name_photo', 'Name and photo', 'Role and rating are visible.')}${radio('rules.mystery.hide', 'name_role', 'Name and role', 'Photo and rating are visible.')}${radio('rules.mystery.hide', 'all', 'Everything', 'Only the base price and the clues are shown.')}</div>
@@ -4791,14 +4802,7 @@ const SETUP = {
           ${R.mystery.auto ? fld('Seconds between clues', 'rules.mystery.every', 'int', { min: 2, max: 60 }) : ''}</div></div>
         <h3 class="lbl" style="margin:16px 0 8px">Mystery players and clues <span class="muted" style="letter-spacing:.04em">· written from each player's IPL stats; edit them if you like</span></h3>
         ${mys.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Player</th><th>Clues (one per line)</th><th>Status</th></tr></thead><tbody>${mys.map(p => `<tr><td><input type="text" value="${esc(p.mcode)}" data-ch="mys-code" data-pid="${esc(p.id)}" style="width:80px" aria-label="Mystery code"></td><td class="pname">${esc(p.name)}</td><td><textarea rows="2" data-ch="mys-clues" data-pid="${esc(p.id)}" style="width:100%;min-width:240px" aria-label="Clues for ${esc(p.name)}">${esc((p.clues || []).join('\n'))}</textarea></td><td>${statusPill(p)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No mystery players yet. On the Players page, select players and choose “Make mystery”.</p>'}</section>
-      <section class="card" style="border-top:6px solid var(--orange)"><h2>🃏 Wild cards <small>A surprise player who enters the auction unexpectedly.</small></h2>
-        <div class="form-grid">
-          ${fld('When they can appear', 'rules.wild.when', 'select', { opts: [['any', 'Any time'], ['between', 'Only between sets'], ['after', 'After a number of players']] })}
-          ${R.wild.when === 'after' ? fld('…after this many players', 'rules.wild.afterN', 'int', { min: 0 }) : ''}
-          ${R.wild.specialBase ? fld('Special base price', 'rules.wild.base', 'money', { min: 0 }) : ''}</div>
-        <div class="row" style="gap:20px;margin-top:12px">${fld('Use a special base price for wild cards', 'rules.wild.specialBase', 'bool')}</div>
-        <h3 class="lbl" style="margin:16px 0 8px">Wild card players</h3>
-        ${wild.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Player</th><th>Role</th><th class="r">Base</th><th>Status</th></tr></thead><tbody>${wild.map(p => `<tr><td class="pid">${esc(p.wcode)}</td><td class="pname">${esc(p.name)}</td><td>${roleText(p)}</td><td class="r money">${money(lotBase(p))}</td><td>${statusPill(p)}${p.surprised ? ' <span class="muted">popped in</span>' : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No wild card players yet. On the Players page, select players and choose “Make wild card”.</p>'}</section>`;
+`;
   },
   data() {
     return `<section class="card" style="border-top:6px solid var(--green)"><h2>Auto-save <small id="saveNote">${saveInfo.at ? 'Last saved ' + hhmmss(saveInfo.at) : 'Saved'}</small></h2>
@@ -4851,7 +4855,7 @@ function freshStart() {
 function loadFixed() {
   confirmBox({
     title: 'LOAD THE FIXED AUCTION LIST', tone: 'gold', ok: 'LOAD THE LIST',
-    html: '<p>Replace what is saved in this browser with the fixed auction: the 10 franchises and the 4-set player list (150 players + the mystery players and wild cards), not started?</p><p class="muted">Team owners, results and your own player changes are cleared. Export a backup first if you need them.</p>',
+    html: '<p>Replace what is saved in this browser with the fixed auction: the 10 franchises and the 4-set player list (150 players + 9 mystery players), not started?</p><p class="muted">Team owners, results and your own player changes are cleared. Export a backup first if you need them.</p>',
     onOk: () => { S = buildFixed(); CK = []; saveCK(); persist(); nav('control'); toast('Fixed auction list loaded: ' + plural(S.players.length, 'player') + '.', 'good'); },
   });
 }
@@ -4869,8 +4873,8 @@ function loadSample() {
 
 function loadIPLFromSetup() {
   const num = (id, lo, hi) => clamp(parseInt(($('#' + id) || {}).value, 10) || 0, lo, hi);
-  const mystery = num('iplMys', 0, 30), wild = num('iplWild', 0, 30), main = num('iplMain', 1, Math.max(1, IPL.players.length - mystery - wild));
-  loadIPLList({ main, mystery, wild }, `${main} IPL players for the main auction, plus ${mystery} mystery players and ${wild} wild cards`);
+  const mystery = num('iplMys', 0, 30), wild = 0, main = num('iplMain', 1, Math.max(1, IPL.players.length - mystery));
+  loadIPLList({ main, mystery, wild }, `${main} IPL players for the main auction, plus ${mystery} mystery players`);
 }
 /* Replace the auction's players with IPL players: the best `main` (o.main) or a hand-picked list (o.list). */
 function loadIPLList(o, what) {
@@ -4947,8 +4951,7 @@ function openPlayerPicker() {
         <label class="pk-only"><input type="checkbox" id="pkOnly" data-ch="pk-f"> Ticked only</label></div>
       <div id="pkList" class="pk-list"></div>`,
     foot: `<span id="pkCount" class="pk-count"></span>
-      <label class="f pk-mini"><span>🕵️ Mystery</span><input id="pkMys" type="number" min="0" max="30" value="8"></label>
-      <label class="f pk-mini"><span>🃏 Wild cards</span><input id="pkWild" type="number" min="0" max="30" value="8"></label>
+      <label class="f pk-mini"><span>🕵️ Mystery</span><input id="pkMys" type="number" min="0" max="30" value="9"></label>
       <button class="btn ghost" data-act="modal-close">CLOSE <kbd>Esc</kbd></button><button class="btn gold" data-act="pk-load" id="pkLoad">LOAD TICKED PLAYERS</button>`,
   });
   drawPlayerPicker();
@@ -4989,11 +4992,11 @@ function pkFill(how) {
 function pkLoad() {
   const list = [...PICK.sel].sort((a, b) => a - b).map(i => IPL.players[i]);
   const num = id => clamp(parseInt(($('#' + id) || {}).value, 10) || 0, 0, 30);
-  const mystery = num('pkMys'), wild = num('pkWild');
+  const mystery = num('pkMys'), wild = 0;
   if (list.length < 2) return toast('Tick at least 2 players.', 'warn');
-  if (mystery + wild >= list.length) return toast('Leave some players for the main auction: lower the mystery and wild card numbers.', 'warn');
+  if (mystery >= list.length) return toast('Leave some players for the main auction: lower the number of mystery players.', 'warn');
   closeModal();
-  loadIPLList({ list, mystery, wild }, `the ${list.length} players you ticked: ${list.length - mystery - wild} for the main auction, plus ${mystery} mystery players and ${wild} wild cards drawn from your list`);
+  loadIPLList({ list, mystery, wild }, `the ${list.length} players you ticked: ${list.length - mystery} for the main auction, plus ${mystery} mystery players drawn from your list`);
 }
 
 /* ---------- Pick the next player by hand, or let a random one pop (works in every order mode;
@@ -5437,7 +5440,7 @@ function rowsToPlayers(rows) {
       id, name, role, bat: /^(l|lh|left)/i.test(g('bat')) ? 'Left Hand' : 'Right Hand', bowl: g('bowl'),
       rating: clamp(parseInt(g('rating'), 10) || 70, 0, 100), base, category, overseas,
       tags: g('tags') ? g('tags').split(/[|;,]/).map(s => s.trim()).filter(Boolean).map(tagFromText) : [],
-      mystery: mystery && !wild, wild, clues: g('clues') ? g('clues').split('|').map(s => s.trim()).filter(Boolean) : [], photo,
+      mystery: mystery || wild, wild: false, clues: g('clues') ? g('clues').split('|').map(s => s.trim()).filter(Boolean) : [], photo,
     });
     p.bowlKind = bowlKindOf(p.bowl);
     p._set = g('set'); p._prev = g('prev');
@@ -5469,7 +5472,7 @@ function openImportPreview(fname, res) {
     id: 'import', title: 'IMPORT PLAYERS', wide: true,
     body: `<p><b>${esc(fname)}</b>: ${plural(out.length, 'player')} found. Columns recognised: ${esc(found.join(', ') || 'none')}.</p>
       ${warn.length ? `<div class="notice">${warn.slice(0, 6).map(esc).join('<br>')}${warn.length > 6 ? `<br>…and ${warn.length - 6} more` : ''}</div>` : ''}
-      ${out.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>ID</th><th>Name</th><th>Role</th><th>Bowling</th><th class="r">Rating</th><th class="r">Base</th><th>Category</th><th>Special</th></tr></thead><tbody>${out.slice(0, 8).map(p => `<tr><td class="pid">${esc(p.id)}</td><td class="pname">${esc(p.name)}</td><td>${roleText(p)}</td><td class="muted">${esc(p.bowl)}</td><td class="r">${p.rating}</td><td class="r money">${money(p.base)}</td><td>${esc(p.category)}${p.overseas ? ' 🌎' : ''}</td><td>${p.mystery ? '🕵️ Mystery' : p.wild ? '🃏 Wild card' : ''}</td></tr>`).join('')}</tbody></table></div>${out.length > 8 ? `<p class="muted">…and ${out.length - 8} more.</p>` : ''}` : ''}
+      ${out.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>ID</th><th>Name</th><th>Role</th><th>Bowling</th><th class="r">Rating</th><th class="r">Base</th><th>Category</th><th>Special</th></tr></thead><tbody>${out.slice(0, 8).map(p => `<tr><td class="pid">${esc(p.id)}</td><td class="pname">${esc(p.name)}</td><td>${roleText(p)}</td><td class="muted">${esc(p.bowl)}</td><td class="r">${p.rating}</td><td class="r money">${money(p.base)}</td><td>${esc(p.category)}${p.overseas ? ' 🌎' : ''}</td><td>${p.mystery ? '🕵️ Mystery' : ''}</td></tr>`).join('')}</tbody></table></div>${out.length > 8 ? `<p class="muted">…and ${out.length - 8} more.</p>` : ''}` : ''}
       <div class="row"><label class="check"><input type="radio" name="impMode" value="add" checked> Add these players (an existing ID is updated)</label>
       <label class="check"><input type="radio" name="impMode" value="replace" ${canReplace ? '' : 'disabled'}> Replace all players${canReplace ? '' : ' (not possible after sales)'}</label></div>`,
     foot: `<button class="btn ghost" data-act="modal-close">CANCEL <kbd>Esc</kbd></button><button class="btn gold" data-act="import-go" ${out.length ? '' : 'disabled'}>IMPORT ${plural(out.length, 'PLAYER')} <kbd>Enter</kbd></button>`,
@@ -5516,11 +5519,11 @@ function doImport() {
 }
 function csvTemplate() {
   const rows = [
-    ['Player ID', 'Name', 'Role', 'Batting', 'Bowling', 'Rating', 'Base Price (Cr)', 'Category', 'Overseas', 'Tags', 'Mystery', 'Wild Card', 'Set', 'Clues', 'Photo URL'],
-    ['P001', 'Arjun Rao', 'All-rounder', 'Right Hand', 'Right-arm medium', '86', '1', 'Capped', 'No', 'Power Hitter|Death Bowler|Versatile', 'No', 'No', '', 'Team 04', '', ''],
-    ['P002', 'Liam Carter', 'Batter', 'Left Hand', '', '84', '1.5', 'Marquee', 'Yes', 'Power Hitter', 'No', 'No', 'Marquee Players', '', '', ''],
-    ['P003', 'Pranay Kothari', 'All-rounder', 'Right Hand', 'Right-arm fast-medium', '88', '1', 'Capped', 'No', 'Finisher', 'Yes', 'No', '', '', 'Known for finishing games.|Can bowl as well.', ''],
-    ['P004', 'Zayan Qureshi', 'Wicketkeeper', 'Right Hand', '', '80', '0.5', 'Uncapped', 'No', 'Safe Hands', 'No', 'Yes', '', '', '', ''],
+    ['Player ID', 'Name', 'Role', 'Batting', 'Bowling', 'Rating', 'Base Price (Cr)', 'Category', 'Overseas', 'Tags', 'Mystery', 'Set', 'Clues', 'Photo URL'],
+    ['P001', 'Arjun Rao', 'All-rounder', 'Right Hand', 'Right-arm medium', '86', '1', 'Capped', 'No', 'Power Hitter|Death Bowler|Versatile', 'No', '', '', ''],
+    ['P002', 'Liam Carter', 'Batter', 'Left Hand', '', '84', '1.5', 'Marquee', 'Yes', 'Power Hitter', 'No', 'Marquee Players', '', ''],
+    ['P003', 'Pranay Kothari', 'All-rounder', 'Right Hand', 'Right-arm fast-medium', '88', '1', 'Capped', 'No', 'Finisher', 'Yes', '', 'Known for finishing games.|Can bowl as well.', ''],
+    ['P004', 'Zayan Qureshi', 'Wicketkeeper', 'Right Hand', '', '80', '0.5', 'Uncapped', 'No', 'Safe Hands', 'No', '', '', ''],
   ];
   saveFile('player-import-template.csv', toCSV(rows), 'text/csv');
 }
@@ -5553,8 +5556,8 @@ function datasets() {
   return {
     transactions: { title: 'Complete transaction history', sheet: 'Transactions', head: ['Time', 'Action', 'Player ID', 'Player', 'Team', 'Amount' + u, 'Auction set', 'Flags', 'Note', 'Undone'],
       rows: S.log.filter(e => e.type !== 'start').map(e => [new Date(e.t).toLocaleString(), e.type.toUpperCase().replace('_', ' '), e.pid || '', pn(e.pid), tn(e.tid), amt(e.amt), setName(e.set), [e.fl, e.type === 'rtm' ? 'RTM' : ''].filter(Boolean).join(' '), e.note || '', e.voided ? 'YES' : '']) },
-    squads: { title: 'Final squads', sheet: 'Squads', head: ['Team', 'Player ID', 'Player', 'Role', 'Overseas', 'Price' + u, 'Acquired', 'Mystery', 'Wild card'],
-      rows: S.teams.flatMap(t => d.ti[t.id].squad.slice().sort((a, b) => b.soldPrice - a.soldPrice).map(p => [t.name, p.id, p.name, ROLE_INFO[p.role].n, p.overseas ? 'Yes' : '', amt(p.soldPrice), p.acq === 'rtm' ? 'RTM' : p.acq === 'direct' ? 'Assigned' : 'Auction', p.mystery ? 'Yes' : '', p.wild ? 'Yes' : ''])) },
+    squads: { title: 'Final squads', sheet: 'Squads', head: ['Team', 'Player ID', 'Player', 'Role', 'Overseas', 'Price' + u, 'Acquired', 'Mystery'],
+      rows: S.teams.flatMap(t => d.ti[t.id].squad.slice().sort((a, b) => b.soldPrice - a.soldPrice).map(p => [t.name, p.id, p.name, ROLE_INFO[p.role].n, p.overseas ? 'Yes' : '', amt(p.soldPrice), p.acq === 'rtm' ? 'RTM' : p.acq === 'direct' ? 'Assigned' : 'Auction', p.mystery ? 'Yes' : ''])) },
     budgets: { title: 'Team budgets', sheet: 'Budgets', head: ['Team', 'Owner', 'Starting purse' + u, 'Adjustments' + u, 'Spent' + u, 'Remaining' + u, 'Squad size', 'Batters', 'Bowlers', 'All-rounders', 'Wicketkeepers', 'Overseas', 'RTM used'],
       rows: S.teams.map(t => { const x = d.ti[t.id]; return [t.name, t.owner || '', amt(S.rules.purse), amt(x.adj), amt(x.spent), amt(x.purse), x.count, x.roles.BAT, x.roles.BOWL, x.roles.AR, x.roles.WK, x.overseas, x.rtmUsed]; }) },
     prices: { title: 'Player sale prices', sheet: 'Players', head: ['Player ID', 'Player', 'Role', 'Category', 'Overseas', 'Rating', 'IPL matches', 'IPL runs', 'IPL wickets', 'Base price' + u, 'Status', 'Sold price' + u, 'Team', 'Bids', 'Set'],
@@ -5576,7 +5579,7 @@ function datasets() {
         ['Most players bought', st.mostPlayers ? st.mostPlayers.n : '', st.mostPlayers ? st.mostPlayers.t.name : ''],
         ['Average player price', money(st.avg), money(st.total) + ' spent in total'],
         ['Total sold', st.sold, ''], ['Total unsold', st.unsold, st.pool + ' in the unsold pool'],
-        ['Mystery players sold', st.mysterySold, ''], ['Wild cards sold', st.wildSold, S.wildUsed.length + ' introduced'], ['Bids placed', st.bids, ''],
+        ['Mystery players sold', st.mysterySold, ''], ['Bids placed', st.bids, ''],
       ] },
     judging: { title: 'Final judging scores & awards', sheet: 'Judging', head: ['Rank', 'Team', ...CRIT.map(c => c[1] + ' /' + c[2]), (manualCrit() ? 'Average total' : 'Total') + ' /100', ...(manualCrit() ? judges.map(j => j.name + ' total') : [])],
       rows: stand.map((r, i) => [r.avg != null ? i + 1 : '', r.t.name, ...CRIT.map(c => critAvg(r.t.id, c[0])), r.avg ?? '', ...(manualCrit() ? r.per.map(x => (x.filled ? x.total : '')) : [])])
@@ -5946,7 +5949,7 @@ const ACT = {
   'team-nologo': d => { commit(() => { T(d.team).logo = ''; }); PAGES.setup.build(); },
   'set-auto': () => confirmBox({
     title: 'AUTO-BUILD SETS', ok: 'BUILD SETS',
-    html: '<p>Sort every player into sets from their data: marquee, batters, fast bowlers, spinners, all-rounders, wicketkeepers, uncapped, overseas, mystery and wild card. Players in custom sets move too. The queue is rebuilt.</p>',
+    html: '<p>Sort every player into sets from their data: marquee, batters, fast bowlers, spinners, all-rounders, wicketkeepers, uncapped, overseas and mystery. Players in custom sets move too. The queue is rebuilt.</p>',
     onOk: () => { commit(() => { autoBuildSets(); rebuildQueue(); if (S.live.phase === 'empty') advance(); }); PAGES.setup.build(); toast('Sets built and the queue rebuilt.', 'good'); },
   }),
   'set-new': () => { commit(() => { S.sets.push({ id: uid('set'), name: 'CUSTOM SET ' + (S.sets.length + 1), kind: 'custom' }); }); PAGES.setup.build(); },
@@ -6039,7 +6042,7 @@ const CH = {
     try { UI.pe.photo = await putMedia(await resizeImage(f, 400)); $('#pePhoto').innerHTML = photoHTML({ name: $('#peName').value, role: $('#peRole').value, photo: UI.pe.photo }, 'md'); }
     catch (e) { toast('Could not read that image.', 'bad'); }
   },
-  'pe-kind': el => { $('#peMys').hidden = el.value !== 'mystery'; $('#peWild').hidden = el.value !== 'wild'; },
+  'pe-kind': el => { $('#peMys').hidden = el.value !== 'mystery'; },
   'fix-player': () => drawFixBox(),
   'award-team': el => { const k = el.dataset.k; commit(() => { const a = S.awards[k] || {}; a.tid = el.value; if (a.pid && (P(a.pid) || {}).soldTo !== a.tid) a.pid = ''; S.awards[k] = a; }); PAGES.judging.awards(true); },
   'award-player': el => { const k = el.dataset.k; commit(() => { const a = S.awards[k] || {}; a.pid = el.value; S.awards[k] = a; }); },
@@ -6232,6 +6235,10 @@ async function boot() {
   if (restored) S = migrate(st);
   else S = MODE === 'control' ? buildFixed() : blankState();
   if (restored && S.sample && MODE === 'control' && S.sampleV !== SAMPLE_V) S = buildFixed();   // the old practice auction → the fixed auction list
+  if (restored && S.fixed && MODE === 'control' && (S.fixedV || 1) < FIXED_V && !S.started && !S.players.some(p => p.status === 'sold')) {
+    const ev = S.event, keep = S.teams.map(t => ({ owner: t.owner, logo: t.logo }));   // an unstarted fixed list → the new one, keeping the owners and the event
+    S = buildFixed(); S.event = ev; S.teams.forEach((t, i) => Object.assign(t, keep[i] || {}));
+  }
   CK = (await idbGet('ck')) || [];
   if (MODE === 'control') setTimeout(cacheLibs, 6000);
   for (const [k, v] of await idbEntries('m:')) MEDIA.set(k.slice(2), v);
