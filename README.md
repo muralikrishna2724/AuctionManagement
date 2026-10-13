@@ -35,6 +35,7 @@ All steps:
 - **Start Auction button**: a new or reset auction waits on a start screen that shows the teams, players, purse, player order and a readiness checklist. Press **▶ START AUCTION** (or `Enter`, or the green button in the top bar) to put “THE AUCTION IS LIVE” on the projector and bring the first player onto the block. Until then, the projector shows “The auction starts soon”.
 - **Projector shows the player, not the numbers**: the big screen shows the player's photo, role, batting and bowling, rating and tags; their IPL career stats stay on the auctioneer's control-room screen.
 - **Next player kept hidden on the projector**: after each sale the projector shows who bought the player (photo, team and price) while the next player stays hidden behind a "Next player coming up" card. Press `Enter` (or **SHOW PLAYER ON PROJECTOR**) to reveal them, and `Enter` again to open the bidding. Turn it off in **Setup → Sets & order**.
+- **Fixed bid step**: every bid raises the price by ₹0.25 Cr. The opening bid is the player's base price; each team button, `Space` or number key then adds ₹0.25 Cr. There are no other raise or custom-amount buttons.
 - **Control room**: the player on the block, current bid, one-click team bids, SOLD / UNSOLD / UNDO / PASS / RTM, team purses, the next-players queue and a live feed, all on one screen.
 - **Manual bid close**: there is no countdown timer. The auctioneer closes each player by hand: click the **BIDDING** box (or press `G`) to call *going once*, then *going twice*, then close. Closing sells to the highest bidder, or marks the player unsold if nobody bid. Any new bid reopens the bidding. The projector shows each call.
 - **Choose your own player list**: in **Setup → Players → ✅ CHOOSE PLAYERS**, set how many players to keep, fill the list with the best rated or at random (filter by role, by source — IPL 2026 auction, auctions 2013–22, other IPL players — or Indian / overseas to build it role by role, say 40 batters then 40 bowlers), and tick or untick anyone. **LOAD** puts exactly those players in the auction, with the mystery players and wild cards drawn from your list. The ticked list is remembered in the browser.
@@ -64,7 +65,6 @@ All steps:
 | `K` | Pick the next player yourself |
 | `M` / `Shift+M` | Mystery player on the block: next clue / reveal now |
 | `T` | Right to Match |
-| `C` | Custom bid |
 | `X` | Pass |
 | `A` | Breaking news alert |
 | `V` / `F` | Projector view / full screen |

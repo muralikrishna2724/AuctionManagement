@@ -113,6 +113,7 @@ kbd{font:700 11px/1 var(--f-body);padding:3px 5px;border-radius:5px;background:r
 .btn.ghost:hover{background:var(--navy-3)}
 .btn.line-red{background:transparent;border-color:rgba(229,72,77,.6);color:var(--red)}
 .btn.line-purple{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.55);color:var(--purple)}
+.bp-jumps .jump.fixed{cursor:default}
 .tm-fixed{font-weight:700;padding:8px 2px;color:var(--ink)}
 .tm-fixed.code{font-family:var(--f-cond);letter-spacing:.08em;color:var(--gold-2)}
 .pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
@@ -1863,15 +1864,14 @@ function lotBase(p) {
   if (p.round2 && S.rules.unsoldCut) b = Math.max(5, Math.round(b * (100 - S.rules.unsoldCut) / 100 / 5) * 5);
   return b;
 }
-function autoStep(cur) {
-  for (const s of S.rules.slabs) if (s.upto == null || cur < s.upto) return s.step;
-  return S.rules.slabs[S.rules.slabs.length - 1].step;
-}
+/* Every bid raises the price by the same fixed step: ₹0.25 Cr. */
+const BID_STEP = cr2l(0.25);
+function autoStep() { return BID_STEP; }
 function nextAmount() {
   const p = lotPlayer(); if (!p) return 0;
   const l = lead();
   if (!l) return lotBase(p);
-  return l.amt + (S.live.jump || autoStep(l.amt));
+  return l.amt + BID_STEP;
 }
 function findChallenger() {
   const b = S.live.bids, l = lead();
@@ -2380,10 +2380,6 @@ function spaceBid() {
   const c = findChallenger();
   if (!c) return toast('Tap the team that raised its paddle, or press its number key.', 'info');
   placeBid(c, nextAmount());
-}
-function setJump(l) {
-  if (!lead()) return toast('The opening bid is always the base price.', 'info');
-  commit(() => { S.live.jump = S.live.jump === l ? null : l; });
 }
 function checkAllOut() {
   const lv = S.live, p = lotPlayer();
@@ -3142,12 +3138,7 @@ function bidHTML(p) {
   const next = nextAmount();
   const ch = findChallenger();
   const amount = l ? l.amt : lotBase(p);
-  const auto = l ? autoStep(l.amt) : autoStep(lotBase(p));
-  const jumps = `<div class="bp-jumps">
-      <button class="jump ${l && !lv.jump ? 'on' : ''}" data-act="jump" data-l="0" ${l ? '' : 'disabled'}>AUTO +${crVal(auto)}</button>
-      ${R.jumps.map(j => `<button class="jump ${lv.jump === j ? 'on' : ''}" data-act="jump" data-l="${j}" ${l ? '' : 'disabled'}>+ ${money(j)}</button>`).join('')}
-      <button class="jump" data-act="custom">CUSTOM <kbd>C</kbd></button>
-    </div>`;
+  const jumps = `<div class="bp-jumps"><span class="jump on fixed" title="Every bid raises the price by ${money(BID_STEP)}">EVERY BID + ${money(BID_STEP)}</span></div>`;
   const start = `<div class="bp-start">${lv.shown === false
     ? `<button class="btn gold lg" data-act="show-proj">📽 SHOW PLAYER ON PROJECTOR <kbd>Enter</kbd></button><p>The projector is still showing the last result. This player stays hidden there until you show them (tapping a team to bid shows them too).</p>`
     : hiddenBlock
@@ -3468,37 +3459,6 @@ function rtmMatch(yes) {
   } else { rtmDeclined(r.tid); closeModal(); sell(l.tid, r.raise, 'auction', 'after RTM raise'); }
 }
 
-function openCustomBid() {
-  const p = lotPlayer(), lv = S.live;
-  if (!p || lv.phase === 'empty' || lv.phase === 'done') return toast('No player on the block.', 'warn');
-  if (lv.phase === 'ready' && isHiddenNow(p) && S.rules.mystery.reveal === 'before') return toast('Reveal the mystery player first (press M).', 'warn');
-  UI.cb = { tid: findChallenger() };
-  openModal({
-    id: 'custom', tone: 'gold', title: 'CUSTOM BID', live: drawCustom,
-    body: `<label class="f"><span>Bid amount (${esc(S.rules.currency.unit || 'amount')}) <small>— now ${money(lead() ? lead().amt : lotBase(p))}</small></span><input id="cbAmt" type="number" step="0.05" min="0" value="${crVal(nextAmount())}" data-in="cb" autofocus></label>
-      <div><span class="lbl">Which team bid?</span><div class="pick-grid" id="cbTeams" style="margin-top:8px"></div></div>`,
-    foot: `<button class="btn ghost" data-act="modal-close">CANCEL <kbd>Esc</kbd></button><button class="btn gold" data-act="cb-place">PLACE BID <kbd>Enter</kbd></button>`,
-    onEnter: placeCustom,
-  });
-  drawCustom();
-}
-function drawCustom() {
-  const g = $('#cbTeams'), p = lotPlayer();
-  if (!g || !p) return;
-  const amt = cr2l(($('#cbAmt') || {}).value || 0);
-  patch(g, S.teams.map(t => {
-    const ch = checkBid(t.id, amt, p);
-    const sel = UI.cb && UI.cb.tid === t.id;
-    return `<button class="chip ${ch.hard.length ? 's-blocked' : ''}" data-act="cb-team" data-team="${t.id}" style="--tc:${esc(t.color)}${sel ? ';box-shadow:0 0 0 3px var(--gold) inset' : ''}" title="${esc(ch.hard[0] || ch.soft[0] || t.name)}"><span class="c-short">${esc(t.short)}</span><span class="c-purse">${money(D().ti[t.id].purse)}</span><span class="c-reason">${ch.hard.length ? '❌ ' + shortReason(ch.hard[0]) : sel ? '✓ SELECTED' : ''}</span></button>`;
-  }).join(''));
-}
-function placeCustom() {
-  const amt = cr2l(($('#cbAmt') || {}).value || 0);
-  const tid = UI.cb && UI.cb.tid;
-  if (!tid) return toast('Pick the team that made this bid.', 'warn');
-  if (!(amt > 0)) return toast('Enter an amount.', 'warn');
-  if (placeBid(tid, amt, { note: 'custom bid' })) closeModal();
-}
 function openPass() {
   const p = lotPlayer(), lv = S.live;
   if (!p || lv.phase === 'empty' || lv.phase === 'done') return toast('No player on the block.', 'warn');
@@ -3699,10 +3659,10 @@ function fireDraft() {
 
 /* ---------- Help & menus ---------- */
 const KEYS = [
-  ['SPACE', 'Next bid. In a bidding war the other team comes back in at the next amount'], ['1 – 9, 0', 'Bid for teams 1 to 10'], ['⇧1 – ⇧5', 'Bid for teams 11 to 15'],
+  ['SPACE', 'Next bid (+₹0.25 Cr). In a bidding war the other team comes back in at the next amount'], ['1 – 9, 0', 'Bid for teams 1 to 10'],
   ['G', 'Going once, going twice, then close the bidding'], ['S', 'SOLD'], ['U', 'UNSOLD'], ['R', 'UNDO the last bid, or the last sale'], ['N', 'Next player (a random one when you pick players yourself)'], ['K', 'Pick the next player yourself'], ['P', 'Previous player'],
   ['M', 'Mystery player on the block: next clue, then reveal'], ['⇧M', 'Reveal the mystery player now'], ['T', 'Right to Match'],
-  ['C', 'Custom bid'], ['X', 'Pass: mark teams that are out'], ['A', 'Breaking news alert'], ['V', 'Projector view on this screen'],
+  ['X', 'Pass: mark teams that are out'], ['A', 'Breaking news alert'], ['V', 'Projector view on this screen'],
   ['F', 'Full screen'], ['ENTER', 'Start the auction, show the next player on the projector, open the bidding, or confirm'], ['ESC', 'Cancel, close, or hide an alert'], ['?', 'This list'],
 ];
 function openShortcuts() {
@@ -4174,9 +4134,7 @@ const SETUP = {
       </div><div class="row" style="margin-top:12px">${fld('Allow a final raise before RTM is matched (IPL 2025 style)', 'rules.rtmRaise', 'bool')}</div></section>
       <section class="card"><h2>Players per role <small>Minimums trigger warnings; maximums block bids.</small></h2>
         <div class="role-grid"><span></span><b>MIN</b><b>MAX</b>${ROLES.map(r => `<span>${ROLE_INFO[r].ic} ${ROLE_INFO[r].pl}</span><input type="number" min="0" step="1" data-bind="rules.roleMin.${r}" data-t="int" value="${R.roleMin[r] ?? 0}" aria-label="Minimum ${ROLE_INFO[r].pl}"><input type="number" min="0" step="1" data-bind="rules.roleMax.${r}" data-t="int" value="${R.roleMax[r] ?? ''}" aria-label="Maximum ${ROLE_INFO[r].pl}">`).join('')}</div></section>
-      <section class="card"><h2>Bid increments</h2><p>The four quick-raise buttons in the control room:</p><div class="form-grid">${R.jumps.map((j, i) => fld('Button ' + (i + 1), 'rules.jumps.' + i, 'money', { min: 0 })).join('')}</div>
-        <p style="margin-top:14px">The automatic step used by <kbd>SPACE</kbd> and team buttons:</p>
-        <div class="form-grid">${fld('Below', 'rules.slabs.0.upto', 'money')}${fld('…add', 'rules.slabs.0.step', 'money')}${fld('Below', 'rules.slabs.1.upto', 'money')}${fld('…add', 'rules.slabs.1.step', 'money')}${fld('Above that, add', 'rules.slabs.2.step', 'money')}</div></section>
+      <section class="card"><h2>Bid increment</h2><p>Every bid raises the price by <b>${money(BID_STEP)}</b>: the opening bid is the player's base price, then each team button, <kbd>SPACE</kbd> or number key adds ${money(BID_STEP)}.</p></section>
       <section class="card"><h2>Budget safety</h2><div class="form-grid">
         ${fld('Keep money for the minimum squad', 'rules.reserve.mode', 'select', { opts: [['off', 'Off'], ['warn', 'Warn only'], ['block', 'Block the bid']] })}
         ${fld('Money kept per empty slot', 'rules.reserve.perSlot', 'money', { min: 0 })}${fld('Low purse warning below', 'rules.lowPurse', 'money', { min: 0 })}
@@ -5117,10 +5075,6 @@ const ACT = {
   'show-proj': () => showOnProjector(),
   'start-auction': () => startAuction(),
   bid: (d, el, e) => (e && e.shiftKey ? togglePass(d.team) : bidTeam(d.team)),
-  jump: d => setJump(+d.l || null),
-  custom: () => openCustomBid(),
-  'cb-team': d => { UI.cb = { tid: d.team }; drawCustom(); },
-  'cb-place': () => placeCustom(),
   undo: () => undoKey(),
   pass: () => openPass(),
   'pass-toggle': d => togglePass(d.team),
@@ -5324,7 +5278,6 @@ const IN = {
   'pk-n': el => { PICK.n = clamp(parseInt(el.value, 10) || 0, 0, IPL.players.length); savePick(); pkCount(); },
   'np-q': () => drawNextPicker(),
   sp: () => drawSurprisePick(),
-  cb: () => drawCustom(),
   'cf-type': el => { const ok = $('#cfOk'); if (ok && MODAL) ok.disabled = el.value !== MODAL.typed; },
   'judge-name': el => {
     const j = S.judging.judges[UI.judge]; if (!j) return;
@@ -5394,7 +5347,6 @@ function onKey(e) {
     case 'p': prevPlayer(); break;
     case 'm': mysteryKey(e.shiftKey); break;
     case 't': rtmKey(); break;
-    case 'c': openCustomBid(); break;
     case 'x': openPass(); break;
     case 'a': openAlerts(); break;
     default: return;
