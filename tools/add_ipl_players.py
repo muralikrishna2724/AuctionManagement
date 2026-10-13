@@ -5,7 +5,7 @@ Usage: python3 tools/add_ipl_players.py data/ipl-dataset <html with the IPL-DATA
 
 1. Players in the pool without career stats (IPL 2026 newcomers and the 2013-2022 auction players typed in by hand)
    get their stats, batting hand and bowling style from the match data; their role is worked out from the stats.
-2. Every other player who has played in the IPL and is not in the pool yet is added after them (ip: 1), with a
+2. Every other player who has played in the IPL since 2013 (FIRST) and is not in the pool yet is added after them (ip: 1), with a
    rating worked out from career numbers. Players who were in the earlier IPL-DATASET pool (the second file, any
    older index.html from git history) come with that entry: photo link, later stats, rating and tags. The match data
    has no nationality, so overseas players are listed in OVERSEAS below.
@@ -32,6 +32,7 @@ MATCH = {
  'Saurabh Dubey': None, 'Syed Mehdi Hasan': None, 'Ansh Patel': None, 'Sagar Trivedi': None, 'Pratham Singh': None, 'Pratyush Singh': None,
  'Kshitiz Sharma': None, 'Anunay Singh': None, 'Saurabh Kumar': None, 'HS Sharath': None, 'Jack Edwards': None, 'Akshat Raghuwanshi': None,
 }
+FIRST = 2013   # only players who played (or, in the auction lists, were sold) from this season on
 SKIP = {'Arshad Khan (2)', 'NA Saini'}   # second records of players already in the pool
 OVERSEAS = set("""AB de Villiers|SP Narine|Sohail Tanvir|PD Salt|RD Rickelton|Umar Gul|ML Hayden|CK Langeveldt|Azhar Mahmood|LMP Simmons|
 MF Maharoof|AD Mascarenhas|DE Bollinger|AC Gilchrist|A Symonds|CRD Fernando|HM Amla|ST Jayasuriya|RJ Harris|E Malinga|SK Warne|WPUJC Vaas|
@@ -194,6 +195,7 @@ bp = lambda r: 200 if r >= 86 else 150 if r >= 80 else 100 if r >= 74 else 75 if
 new = []
 for k, s in st.items():
     if k in used or k in SKIP: continue
+    if (s.get('to') or FIRST) < FIRST: continue   # last IPL season before 2013
     o = old_for.get(k)
     if o and o['st']:
         e = {key: (v[:] if isinstance(v, list) else v) for key, v in o.items()}
