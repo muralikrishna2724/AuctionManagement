@@ -5,8 +5,8 @@ Usage: python3 tools/add_past_players.py <eda-ipl-player-auction-dataset.ipynb> 
 The notebook (an EDA of the Kaggle "IPL Player Auction Dataset from start to now") only keeps the full list of
 player names, not every row, so each player's role, stats, photo and tags come from IPL-DATASET when they are in it
 (matched by exact name or a known spelling variant), and from the PAST table below otherwise. Ratings in PAST are
-an estimate of how sought-after the player was at those auctions. Rows flagged ? are guesses: they get the
-"Check role" tag so the organiser can confirm them on the Players page. Safe to re-run: earlier additions are
+an estimate of how sought-after the player was at those auctions. Rows flagged ? are a best
+guess (they are listed as all-rounders). Safe to re-run: earlier additions are
 replaced, the IPL 2026 players are left as they are.
 """
 import ast, json, re, sys
@@ -437,7 +437,7 @@ for raw in names:
         e = {'n': n, 'sn': n, 'cid': 0, 'r': r, 'rt': int(rt), 'bp': bp(int(rt)), 'bat': bat, 'bowl': BOWL.get(bw, ''),
              'bk': ('spin' if bw in ('ob', 'lb', 'lbg', 'sla', 'lws') else 'pace') if bw else '', 'os': int(os_),
              'cat': 'Capped' if cap == '1' else 'Uncapped', 'tg': [TAG[c] for c in tg], 'img': '', 'dob': '', 'st': None}
-        if unsure: e['tg'].append('❓ Check role'); guessed.append(n)
+        if unsure: guessed.append(n)
     e['pa'] = 1          # sold at an IPL auction between 2013 and 2022
     e['s26'] = None
     out.append(e)

@@ -3,7 +3,7 @@
 Usage: python3 tools/build_pool.py IPL_Auction_2026_Sold_Player.csv <html with the IPL-DATASET pool> index.html
 The second file is any older index.html whose `const IPL = {...}` still holds the IPL-DATASET players (git history
 before the switch); roles, stats, photos and tags are matched from it by exact name or a known spelling variant.
-Add confident roles for new players to KNOWN; anyone else is marked "Check role".
+Add confident roles for new players to KNOWN; anyone else is listed as an all-rounder (printed as "check role").
 """
 import csv, json, re, sys, math
 SRC_CSV, OLD_HTML, OUT_HTML = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -60,7 +60,7 @@ for i, x in enumerate(recs):
             spin = any(w in k[2] for w in ('orthodox', 'spin', 'break'))
             e.update({'r': k[0], 'bat': k[1], 'bowl': k[2], 'bk': 'spin' if spin else ('pace' if k[2] else ''), 'tg': []})
         else:
-            e.update({'r': 'AR', 'bat': '', 'bowl': '', 'bk': '', 'tg': ['❓ Check role']}); unsure.append(x['name'])
+            e.update({'r': 'AR', 'bat': '', 'bowl': '', 'bk': '', 'tg': []}); unsure.append(x['name'])
         e['st'] = None
     out.append(e)
 I['players'] = out
