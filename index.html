@@ -634,6 +634,57 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .fx-a-title{font:2em/1 var(--f-display);letter-spacing:.03em}
 .fx-a-text{font:900 1.4em/1.08 var(--f-cond);letter-spacing:.02em;text-transform:uppercase;max-width:30ch}
 .fx-alert{animation:alertIn .4s cubic-bezier(.2,1.4,.4,1)}
+/* ---------- Effect layers: confetti, rays, rings, sparks, floating question marks ---------- */
+.fx{overflow:hidden;isolation:isolate}
+.fx-bg{position:absolute;inset:0;z-index:-1;pointer-events:none}
+@keyframes fxSpin{to{transform:rotate(360deg)}}
+@keyframes fxFadeIn{from{opacity:0}}
+@keyframes fxFlash{0%{opacity:0}1%{opacity:.8}100%{opacity:0}}
+@keyframes fxRing{0%{opacity:0;transform:scale(.2)}2%{opacity:.95}100%{opacity:0;transform:scale(3.4)}}
+.fx-rays{inset:-60%;background:repeating-conic-gradient(from 0deg,rgba(232,178,58,.2) 0 6deg,transparent 6deg 18deg);-webkit-mask:radial-gradient(circle,#000 12%,transparent 55%);mask:radial-gradient(circle,#000 12%,transparent 55%);animation:fxSpin 16s linear infinite,fxFadeIn .6s var(--sd,0s) both}
+.fx-ring{position:absolute;left:50%;top:50%;width:10em;height:10em;margin:-5em 0 0 -5em;border-radius:50%;border:.22em solid var(--gold);opacity:0;z-index:-1;pointer-events:none;animation:fxRing .9s calc(var(--sd,0s) + .3s) ease-out both}
+.fx-ring.r2{border-color:var(--tc,#fff);animation-delay:calc(var(--sd,0s) + .5s)}
+.fx-flash{background:#fff;opacity:0;animation:fxFlash .45s calc(var(--sd,0s) + .3s) ease-out both}
+.fx-conf i{position:absolute;top:-6%;left:var(--x);width:var(--w);height:calc(var(--w) * .42);background:var(--c);border-radius:.08em;opacity:0;animation:fxFall var(--t) calc(var(--sd,0s) + .35s + var(--d)) cubic-bezier(.25,.6,.5,1) forwards}
+.fx-conf i:nth-child(3n){border-radius:50%;height:var(--w)}
+@keyframes fxFall{0%{opacity:1;transform:translate(0,0) rotate(0)}85%{opacity:1}100%{opacity:0;transform:translate(var(--dx),118vh) rotate(var(--r))}}
+.fx-sold .stamp{animation-delay:var(--sd,0s);box-shadow:0 0 .5em rgba(232,178,58,.35),inset 0 0 .4em rgba(232,178,58,.25)}
+.fx-sold .fx-to{animation:pjUp .5s calc(var(--sd,0s) + .5s) both}
+.fx-sold .fx-amt{animation:fxAmt .7s calc(var(--sd,0s) + .65s) cubic-bezier(.2,1.5,.4,1) both,fxShine 1.8s calc(var(--sd,0s) + 1.3s) ease-in-out infinite}
+@keyframes fxAmt{from{opacity:0;transform:scale(.3)}}
+@keyframes fxShine{50%{text-shadow:0 0 .45em rgba(232,178,58,.85)}}
+/* mystery: fog, scanlines, a heartbeat ring and question marks drifting up */
+.fx-mys{background:radial-gradient(ellipse at center,rgba(91,63,208,.5),rgba(10,8,40,.97) 72%) #0a0828}
+.fx-fog{inset:-25%;background:radial-gradient(40% 30% at 30% 62%,rgba(167,139,250,.2),transparent 70%),radial-gradient(34% 26% at 70% 38%,rgba(120,90,230,.18),transparent 70%);animation:fxFog 5s ease-in-out infinite alternate}
+@keyframes fxFog{to{transform:translate(7%,-5%) scale(1.18)}}
+.fx-scan{background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 5px);animation:fxScan 6s linear infinite}
+@keyframes fxScan{to{background-position:0 100px}}
+.fx-qm span{position:absolute;bottom:-1.3em;left:var(--x);font:var(--s)/1 var(--f-display);color:rgba(167,139,250,.55);opacity:0;animation:fxQ var(--t) var(--d) ease-in infinite}
+@keyframes fxQ{0%{opacity:0;transform:translateY(0) rotate(-12deg)}20%{opacity:.85}100%{opacity:0;transform:translateY(-120vh) rotate(22deg)}}
+.fx-mys .fx-ring{border-color:var(--purple);animation:fxRing 1s .3s ease-out infinite}
+.fx-mys .fx-ring.r2{border-color:#c4b5fd;animation-delay:.5s}
+.fx-mys .fx-k,.fx-mys .fx-sub{animation:fxFlicker 1.1s both}
+.fx-mys .fx-sub{animation-delay:.25s}
+@keyframes fxFlicker{0%{opacity:0}10%{opacity:.6}14%{opacity:0}24%{opacity:1}30%{opacity:.35}36%,100%{opacity:1}}
+.fx-mys .ph.mys{animation:fxBeat 1s .3s infinite,fxGlitch 2.3s steps(1) infinite}
+@keyframes fxBeat{0%,32%,100%{transform:scale(1);box-shadow:0 0 0 .12em var(--paper),0 0 1em rgba(167,139,250,.4)}8%{transform:scale(1.09);box-shadow:0 0 0 .12em var(--paper),0 0 2.2em rgba(167,139,250,.9)}24%{transform:scale(1.05)}}
+@keyframes fxGlitch{0%,88%,100%{text-shadow:none;filter:none}90%{text-shadow:.07em 0 #ff3d7f,-.07em 0 #3df5ff;filter:hue-rotate(50deg)}94%{text-shadow:-.05em .02em #ff3d7f,.05em 0 #3df5ff}97%{text-shadow:.03em 0 #3df5ff;filter:none}}
+/* wild card: a flash on every count, then a white impact, spinning rays, sparks and a card flip */
+.fx-wild .fx-k{animation:fxJolt .12s 8 alternate;text-shadow:0 0 .5em rgba(251,146,60,.9)}
+@keyframes fxJolt{from{transform:translate(-.05em,.03em)}to{transform:translate(.05em,-.03em)}}
+.fx-beat{background:radial-gradient(circle,rgba(251,146,60,.45),transparent 65%);opacity:0;animation:fxFlash 1s 3 ease-out both}
+.fx-wild .fx-flash{animation-delay:3s}
+.fx-wild .fx-rays{background:repeating-conic-gradient(from 0deg,rgba(251,146,60,.26) 0 8deg,transparent 8deg 20deg);animation:fxSpin 7s linear infinite,fxFadeIn .4s 3s both}
+.fx-wild .fx-ring{--sd:2.7s;border-color:var(--orange)}
+.fx-wild .fx-ring.r2{border-color:#fff}
+.cd span{text-shadow:0 0 .35em rgba(251,146,60,.9)}
+.fx-sparks i{position:absolute;left:50%;top:50%;width:1.5em;height:.16em;margin-top:-.08em;box-shadow:0 0 .4em rgba(251,146,60,.9);border-radius:1em;background:linear-gradient(90deg,#fff,var(--orange));opacity:0;animation:fxSpark 1.4s calc(3s + var(--d)) cubic-bezier(.15,.6,.35,1) both}
+@keyframes fxSpark{0%{opacity:0;transform:rotate(var(--a)) translateX(4vmin) scaleX(.3)}4%{opacity:1}55%{opacity:1}100%{opacity:0;transform:rotate(var(--a)) translateX(var(--len)) scaleX(1.5)}}
+.fx-wild .fx-late .ph{animation:fxFlip 1s 3s cubic-bezier(.2,.8,.2,1) both}
+@keyframes fxFlip{0%{opacity:0;transform:perspective(40em) rotateY(-540deg) scale(.35)}100%{opacity:1;transform:none}}
+.fx-wild .fx-late .fx-name{animation:fxSlam .55s 3.35s cubic-bezier(.2,1.4,.4,1) both;text-shadow:0 0 .4em rgba(251,146,60,.7)}
+@keyframes fxSlam{from{opacity:0;transform:scale(2.4)}}
+
 @keyframes alertIn{from{transform:translateY(-30%);opacity:0}}
 .fx-set small{font:800 .8em/1 var(--f-cond);letter-spacing:.2em;color:var(--green)}
 .fx-set b{font:1.8em/1 var(--f-display);letter-spacing:.02em}
@@ -777,6 +828,14 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 #pjMain.enter .pj-next{animation:pjRight .7s .2s both}
 #pjMain.enter .pj-idle > *{animation:pjUp .6s both}
 #pjMain.enter .pj-idle > *:nth-child(2){animation-delay:.2s}
+/* a new player: a light sweep across the stage, a gold ring from the photo and a glow on the name */
+#pjMain.spot{position:relative}
+#pjMain.spot::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:3;background:linear-gradient(105deg,transparent 32%,rgba(255,236,190,.14) 44%,rgba(255,255,255,.4) 50%,rgba(255,236,190,.14) 56%,transparent 68%);transform:translateX(-100%);animation:pjSweep 1.2s .35s ease-in-out both}
+@keyframes pjSweep{to{transform:translateX(100%)}}
+#pjMain.spot .pj-player .ph{animation:pjPhotoIn .85s cubic-bezier(.2,.8,.2,1) both,pjRing 1.1s .65s ease-out}
+@keyframes pjRing{0%{outline:.14em solid rgba(232,178,58,.95);outline-offset:.05em}100%{outline:.04em solid rgba(232,178,58,0);outline-offset:1.5em}}
+#pjMain.spot .pj-name{animation:pjUp .6s .25s both,pjGlow 1.6s .85s ease-out}
+@keyframes pjGlow{30%{text-shadow:0 0 .35em rgba(232,178,58,.9)}}
 @keyframes pjFloat{50%{transform:translateY(-.45em)}}
 .pj-next .q{animation:pjFloat 3.2s ease-in-out infinite,pulse 2s infinite}
 @keyframes pjBreathe{50%{opacity:.45}}
@@ -917,6 +976,7 @@ body.mode-proj .app{display:none}
   *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
   .fx-late{opacity:1}
   .cd{display:none}
+  .fx-bg,.fx-ring,#pjMain.spot::after{display:none}
 }
 
 /* ---------- Print (offline file) ---------- */
@@ -1128,51 +1188,127 @@ function loadLib(k) {
   return libP[k];
 }
 
-/* ---------- Sound effects (synthesised, no files) ---------- */
+/* ---------- Sound effects (synthesised, no files) ----------
+   Each moment has its own sound: a gavel, cheer and fanfare for SOLD, a swoosh and chime for a new
+   player, a heartbeat and eerie drone for a mystery player, a countdown and impact for a wild card. */
 const SFX = (() => {
-  let ctx = null;
+  let ctx = null, out = null, nbuf = null;
   function ac() {
-    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+    if (!ctx) {
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+      try {   // one limiter on the way out so stacked sounds never clip
+        out = ctx.createDynamicsCompressor();
+        out.threshold.value = -14; out.knee.value = 12; out.ratio.value = 6; out.attack.value = 0.003; out.release.value = 0.25;
+        out.connect(ctx.destination);
+      } catch (e) { out = ctx.destination; }
+    }
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     return ctx;
+  }
+  function env(c, t0, d, vol, atk = 0.012) {
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + atk);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    return g;
   }
   function tone(f, d, o = {}) {
     const c = ac(); if (!c) return;
     const t0 = c.currentTime + (o.at || 0);
-    const osc = c.createOscillator(), g = c.createGain();
+    const osc = c.createOscillator(), g = env(c, t0, d, o.vol || 0.1, o.atk);
     osc.type = o.type || 'sine';
     osc.frequency.setValueAtTime(f, t0);
-    if (o.slide) osc.frequency.exponentialRampToValueAtTime(o.slide, t0 + d);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(o.vol || 0.1, t0 + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
-    osc.connect(g).connect(c.destination);
+    if (o.detune) osc.detune.value = o.detune;
+    if (o.slide) osc.frequency.exponentialRampToValueAtTime(o.slide, t0 + (o.slideT || d));
+    if (o.vib) {   // vibrato
+      const l = c.createOscillator(), lg = c.createGain();
+      l.frequency.value = o.vib; lg.gain.value = f * 0.012; l.connect(lg).connect(osc.frequency); l.start(t0); l.stop(t0 + d + 0.05);
+    }
+    let node = osc;
+    if (o.lp) { const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = o.lp; f2.Q.value = o.q || 0.7; node.connect(f2); node = f2; }
+    node.connect(g).connect(out);
     osc.start(t0); osc.stop(t0 + d + 0.05);
   }
-  function knock(at) {
+  function noise(d, o = {}) {
     const c = ac(); if (!c) return;
-    const len = Math.floor(c.sampleRate * 0.14);
-    const b = c.createBuffer(1, len, c.sampleRate), ch = b.getChannelData(0);
-    for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 4);
-    const s = c.createBufferSource(); s.buffer = b;
-    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700;
-    const g = c.createGain(); g.gain.value = 0.9;
-    s.connect(f).connect(g).connect(c.destination);
-    s.start(c.currentTime + at);
-    tone(150, 0.12, { type: 'sine', vol: 0.25, at });
+    if (!nbuf) {
+      nbuf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
+      const ch = nbuf.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+    }
+    const t0 = c.currentTime + (o.at || 0);
+    const src = c.createBufferSource(); src.buffer = nbuf; src.loop = true;
+    const f = c.createBiquadFilter(); f.type = o.type || 'bandpass'; f.Q.value = o.q || 1;
+    f.frequency.setValueAtTime(o.f || 1000, t0);
+    if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, t0 + d);
+    const g = env(c, t0, d, o.vol || 0.1, o.atk || 0.01);
+    let node = src.connect(f);
+    if (o.am) {   // crowd-like flutter
+      const am = c.createGain(), l = c.createOscillator(), lg = c.createGain();
+      am.gain.value = 0.7; l.frequency.value = o.am; lg.gain.value = 0.3; l.connect(lg).connect(am.gain); l.start(t0); l.stop(t0 + d + 0.05);
+      node = node.connect(am);
+    }
+    node.connect(g).connect(out);
+    src.start(t0, Math.random()); src.stop(t0 + d + 0.05);
   }
+  const thump = (at, f = 90, vol = 0.35, d = 0.22) => tone(f, d, { at, vol, slide: f * 0.45, atk: 0.004 });
+  function knock(at) { noise(0.12, { at, type: 'lowpass', f: 900, vol: 0.5, atk: 0.002 }); thump(at, 160, 0.3, 0.14); }
   const on = () => typeof S !== 'undefined' && S && S.rules.sound !== false && MODE === 'control' && CONTROLLER && !SIM;
+  // a brass-like note: two detuned saws through a low-pass that opens with the note
+  const brass = (f, d, at, vol = 0.05) => { tone(f, d, { type: 'sawtooth', vol, at, lp: 2400, atk: 0.03 }); tone(f, d, { type: 'sawtooth', vol: vol * 0.7, at, lp: 1800, detune: 9, atk: 0.04 }); };
+  const sparkle = (at, notes = [1568, 2093, 2637, 3136], gap = 0.06) => notes.forEach((f, i) => tone(f, 0.35, { type: 'triangle', vol: 0.035, at: at + i * gap }));
+  function cheer(at, d = 2.6) {
+    noise(d, { at, f: 1400, q: 0.6, vol: 0.12, atk: 0.35, am: 7 });
+    noise(d * 0.9, { at: at + 0.05, f: 2600, q: 0.8, vol: 0.06, atk: 0.4, am: 11 });
+    noise(d * 0.8, { at: at + 0.1, f: 600, q: 0.7, vol: 0.07, atk: 0.3, am: 5 });
+  }
   return {
     unlock() { ac(); },
-    bid() { if (on()) tone(1046, 0.07, { type: 'triangle', vol: 0.07 }); },
-    no() { if (on()) { tone(220, 0.1, { type: 'square', vol: 0.04 }); tone(170, 0.14, { type: 'square', vol: 0.04, at: 0.1 }); } },
-    sold() { if (!on()) return; knock(0); knock(0.24); [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.55, { type: 'triangle', vol: 0.07, at: 0.5 + i * 0.07 })); },
-    unsold() { if (on()) tone(330, 0.45, { type: 'sawtooth', vol: 0.04, slide: 150 }); },
-    wild() { if (!on()) return; [0, 1, 2].forEach(i => tone(i === 2 ? 880 : 660, 0.16, { type: 'square', vol: 0.05, at: i })); tone(330, 0.9, { type: 'sawtooth', vol: 0.06, at: 3, slide: 1320 }); },
-    reveal() { if (!on()) return; tone(180, 1.3, { type: 'sawtooth', vol: 0.045, slide: 880 }); tone(1318, 0.7, { type: 'triangle', vol: 0.08, at: 1.3 }); },
-    mystery() { if (!on()) return; tone(196, 1.1, { type: 'sine', vol: 0.08, slide: 147 }); tone(233, 1.1, { type: 'sine', vol: 0.06, at: 0.15, slide: 175 }); tone(587, 0.5, { type: 'triangle', vol: 0.05, at: 1.1 }); },
-    alert() { if (!on()) return; [0, 0.16, 0.32].forEach((at, i) => tone(i === 1 ? 660 : 880, 0.13, { type: 'square', vol: 0.045, at })); },
-    call(n) { if (!on()) return; for (let i = 0; i < n; i++) tone(n > 1 ? 784 : 659, 0.16, { type: 'square', vol: 0.05, at: i * 0.22 }); },
+    bid() { if (on()) { tone(1046, 0.08, { type: 'triangle', vol: 0.07 }); tone(1568, 0.06, { type: 'sine', vol: 0.03, at: 0.03 }); } },
+    no() { if (on()) { tone(220, 0.1, { type: 'square', vol: 0.04, lp: 1200 }); tone(170, 0.14, { type: 'square', vol: 0.04, at: 0.1, lp: 1200 }); } },
+    /* SOLD: three gavel knocks, a boom, the crowd and a brass fanfare. A mystery player gets a riser first. */
+    sold(reveal) {
+      if (!on()) return;
+      const s = reveal ? 1.6 : 0;
+      if (reveal) { tone(160, 1.6, { type: 'sawtooth', vol: 0.04, slide: 1100, lp: 2600, atk: 0.3 }); noise(1.6, { f: 300, to: 5000, q: 1.4, vol: 0.08, atk: 1.2 }); }
+      knock(s); knock(s + 0.16); knock(s + 0.32); thump(s + 0.34, 70, 0.45, 0.5);
+      cheer(s + 0.35);
+      [[523, 0.12], [523, 0.12], [523, 0.12]].forEach(([f, d], i) => brass(f, d, s + 0.45 + i * 0.13));
+      [523, 659, 784, 1046].forEach(f => brass(f, 1.1, s + 0.84, 0.035));
+      sparkle(s + 1.25);
+    },
+    /* UNSOLD: a sad trombone. */
+    unsold() { if (!on()) return; [392, 370, 349].forEach((f, i) => tone(f, 0.3, { type: 'sawtooth', vol: 0.045, at: i * 0.32, lp: 900 })); tone(330, 0.9, { type: 'sawtooth', vol: 0.05, at: 0.96, lp: 900, vib: 6, slide: 300 }); },
+    /* A new player on screen: a swoosh, a soft hit and a bright stadium chime. */
+    player() {
+      if (!on()) return;
+      noise(0.55, { f: 350, to: 4500, q: 1.2, vol: 0.12, atk: 0.35 });
+      thump(0.5, 110, 0.25, 0.3);
+      [784, 1175, 1568].forEach((f, i) => { tone(f, 1.4, { type: 'sine', vol: 0.06, at: 0.5 + i * 0.05 }); tone(f * 2.01, 0.6, { type: 'sine', vol: 0.015, at: 0.5 + i * 0.05 }); });
+    },
+    /* WILD CARD: 3-2-1 with a drum and rising beeps, a riser, then an impact, a power chord and sparks. */
+    wild() {
+      if (!on()) return;
+      [523, 659, 784].forEach((f, i) => { thump(i, 95, 0.35, 0.25); tone(f, 0.22, { type: 'square', vol: 0.045, at: i, lp: 3000 }); tone(f * 2, 0.12, { type: 'square', vol: 0.02, at: i + 0.02, lp: 3000 }); });
+      noise(0.75, { at: 2.25, f: 400, to: 7000, q: 1.5, vol: 0.12, atk: 0.6 });
+      tone(200, 0.75, { type: 'sawtooth', vol: 0.04, at: 2.25, slide: 1600, lp: 3000, atk: 0.5 });
+      noise(0.5, { at: 3, type: 'lowpass', f: 1200, to: 200, vol: 0.4, atk: 0.003 });
+      tone(120, 0.9, { at: 3, vol: 0.45, slide: 38, atk: 0.004 });
+      [110, 165, 220, 330].forEach(f => tone(f, 1.2, { type: 'sawtooth', vol: 0.035, at: 3.02, lp: 1400, q: 2, atk: 0.01 }));
+      sparkle(3.25, [1318, 1568, 2093, 2637, 3136, 4186], 0.05);
+    },
+    reveal() { if (!on()) return; tone(180, 1.3, { type: 'sawtooth', vol: 0.045, slide: 880, lp: 2600 }); noise(1.3, { f: 300, to: 5000, vol: 0.06, atk: 1 }); tone(1318, 0.7, { type: 'triangle', vol: 0.08, at: 1.3 }); sparkle(1.4); },
+    /* MYSTERY: a dark drone, a heartbeat, an eerie shimmer and a question that never resolves. */
+    mystery() {
+      if (!on()) return;
+      tone(55, 3.6, { type: 'sawtooth', vol: 0.06, lp: 320, atk: 0.8 }); tone(58.3, 3.6, { type: 'sawtooth', vol: 0.05, lp: 320, atk: 0.8 });
+      [0.3, 1.3, 2.3].forEach(t => { thump(t, 62, 0.45, 0.2); thump(t + 0.2, 55, 0.32, 0.2); });
+      tone(1244, 2.4, { type: 'triangle', vol: 0.014, at: 0.6, vib: 5, atk: 0.6 }); tone(1318, 2.4, { type: 'triangle', vol: 0.012, at: 0.7, vib: 4.3, atk: 0.6 });
+      noise(2.8, { at: 0.2, f: 500, to: 1600, q: 6, vol: 0.03, atk: 1.2 });
+      [440, 523, 622].forEach((f, i) => tone(f, i === 2 ? 1.1 : 0.3, { type: 'triangle', vol: 0.06, at: 3.1 + i * 0.28, vib: i === 2 ? 5 : 0 }));
+    },
+    clue() { if (on()) { tone(880, 0.18, { type: 'triangle', vol: 0.05 }); tone(1175, 0.4, { type: 'triangle', vol: 0.05, at: 0.12, vib: 5 }); } },
+    alert() { if (!on()) return; [0, 0.16, 0.32].forEach((at, i) => tone(i === 1 ? 660 : 880, 0.13, { type: 'square', vol: 0.045, at, lp: 3000 })); },
+    call(n) { if (!on()) return; for (let i = 0; i < n; i++) tone(n > 1 ? 784 : 659, 0.16, { type: 'square', vol: 0.05, at: i * 0.22, lp: 3000 }); },
   };
 })();
 
@@ -2503,8 +2639,7 @@ function showOnProjector() {
     S.live.shown = true;
     if (S.live.setFx) { fire('set', { setId: S.live.setFx, pid: S.live.pid }); S.live.setFx = null; }
   });
-  SFX.alert();
-  return true;
+  return true;   // the entrance sound comes from playerCue()
 }
 function startBidding() {
   const lv = S.live, p = lotPlayer();
@@ -2639,7 +2774,7 @@ function sell(tid, amt, acq = 'auction', note = '') {
     fire('sold', { pid: p.id, tid, amt, acq, reveal: hidden });
     finishLot({ type: 'sold', tid, amt });
   }, { ck: `Sale of ${p.name} to ${t.short} for ${money(amt)}` });
-  if (!SIM) SFX.sold();
+  if (!SIM) SFX.sold(hidden);
 }
 function markUnsold(pool) {
   const lv = S.live, p = lotPlayer();
@@ -2695,7 +2830,7 @@ function showClue() {
     log({ type: 'clue', pid: p.id, note: '#' + (n + 1) + ' ' + c });
     fire('clue', { pid: p.id, n: n + 1, text: c });
   });
-  SFX.alert();
+  SFX.clue();
 }
 /* Mystery players are revealed only by a sale (see sell). Asking for an earlier reveal just explains that. */
 function revealMystery(force) {
@@ -2996,6 +3131,18 @@ const BALL = '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20
 const QM = '<span class="qm">?</span>';
 function patch(el, html) { if (el && el._h !== html) { el.innerHTML = html; el._h = html; } }
 let renderQ = false;
+/* The new-player sound, played once when a player comes up on the projector (after any SOLD!
+   or set effect, like the projector's entrance). Surprises have their own sounds. */
+let CUE = { lot: undefined, t: 0 };
+function playerCue() {
+  const lv = S.live, p = lotPlayer();
+  const key = p && lv.shown !== false && lv.how !== 'surprise' && (lv.phase === 'ready' || lv.phase === 'bidding') && !isHiddenNow(p) ? lv.lotId : null;
+  if (key === CUE.lot) return;
+  const first = CUE.lot === undefined;
+  CUE.lot = key; clearTimeout(CUE.t);
+  if (first || !key) return;
+  CUE.t = setTimeout(() => { if (CUE.lot === key) SFX.player(); }, fxLeft());
+}
 function render() {
   if (SIM || typeof requestAnimationFrame === 'undefined') return;
   if (renderQ) return;
@@ -3010,6 +3157,7 @@ function renderNow() {
   else if (PAGES[UI.page]) PAGES[UI.page].update();
   if (UI.projView) renderProj();
   runFx($('#crFx'), false);
+  playerCue();
   if (MODAL && MODAL.live) MODAL.live();
 }
 function nav(page) {
@@ -4691,8 +4839,9 @@ function projAnimate() {
       const go = () => {
         if (fxLeft() > 0) { PJA.t = setTimeout(go, 150); return; }
         main.classList.remove('wait'); void main.offsetWidth; main.classList.add('enter');
+        main.classList.toggle('spot', /^lot:/.test(scene) && !/:(done|h)$/.test(scene));   // a new player in the spotlight
         countUp(main.querySelectorAll('.pj-stats .ps-row b'), 800);
-        PJA.t = setTimeout(() => main.classList.remove('enter'), 1900);
+        PJA.t = setTimeout(() => main.classList.remove('enter', 'spot'), 2200);
       };
       go();
     }
@@ -4834,17 +4983,39 @@ function fxDur(fx) {
   if (fx.kind === 'sold' && fx.data && fx.data.reveal) d += 1800;
   return d;
 }
+const rnd = (a, b, n = 2) => (a + Math.random() * (b - a)).toFixed(n);
+function confettiHTML(colors, n) {
+  let h = '';
+  for (let i = 0; i < n; i++) h += `<i style="--x:${rnd(0, 100, 1)}%;--dx:${rnd(-14, 14, 1)}vh;--r:${rnd(360, 1260, 0)}deg;--d:${rnd(0, 0.6)}s;--t:${rnd(1.7, 2.8)}s;--w:${rnd(0.3, 0.65)}em;--c:${esc(colors[i % colors.length])}"></i>`;
+  return `<div class="fx-bg fx-conf">${h}</div>`;
+}
+function sparksHTML(n) {
+  let h = '';
+  for (let i = 0; i < n; i++) h += `<i style="--a:${Math.round(i * 360 / n + Math.random() * 8)}deg;--len:${rnd(28, 52, 0)}vmin;--d:${rnd(0, 0.15)}s"></i>`;
+  return `<div class="fx-bg fx-sparks">${h}</div>`;
+}
+function floatHTML(ch, n) {
+  let h = '';
+  for (let i = 0; i < n; i++) h += `<span style="--x:${rnd(2, 96, 1)}%;--s:${rnd(1.2, 3.6)}em;--t:${rnd(3, 5.5)}s;--d:${rnd(0, 2.5)}s">${esc(ch)}</span>`;
+  return `<div class="fx-bg fx-qm">${h}</div>`;
+}
 function fxHTML(fx, big) {
   const d = fx.data || {}, p = d.pid ? P(d.pid) : null, t = d.tid ? T(d.tid) : null;
   const ph = p ? photoHTML(p, big ? 'lg' : 'md') : '';
   switch (fx.kind) {
-    case 'sold': return `<div class="fx fx-sold">${d.reveal ? '<div class="fx-k" style="color:var(--purple)">🕵️ THE MYSTERY PLAYER IS…</div>' : ''}
+    case 'sold': return `<div class="fx fx-sold" style="--sd:${d.reveal ? '1.6s' : '0s'};--tc:${esc(t ? t.color : '#fff')}">
+      <div class="fx-bg fx-rays"></div><div class="fx-ring"></div><div class="fx-ring r2"></div>
+      ${confettiHTML([t ? t.color : '#E8B23A', '#E8B23A', '#ffffff', t ? t.color : '#4F91CD', '#F6D27A'], big ? 70 : 32)}
+      <div class="fx-bg fx-flash"></div>
+      ${d.reveal ? '<div class="fx-k" style="color:var(--purple)">🕵️ THE MYSTERY PLAYER IS…</div>' : ''}
       ${p ? `<div class="fx-name"${d.reveal ? ` data-scramble="${esc(p.name)}"` : ''}>${d.reveal ? '' : esc(p.name)}</div>` : ''}
-      <div class="stamp"${d.reveal ? ' style="animation-delay:1.6s"' : ''}>SOLD!</div>
+      <div class="stamp">SOLD!</div>
       ${t ? `<div class="fx-to">TO ${teamBadge(t.id)}</div>` : ''}<div class="fx-amt">${money(d.amt, { fixed: true })}</div>
       ${d.acq === 'rtm' ? '<div class="fx-tag">🔁 RIGHT TO MATCH</div>' : ''}</div>`;
     case 'unsold': return `<div class="fx fx-unsold"><div class="stamp red">UNSOLD</div>${p ? `<div class="fx-name">${esc(publicName(p))}</div>` : ''}</div>`;
-    case 'wild': return `<div class="fx fx-wild"><div class="fx-k">🃏 WILD CARD ALERT</div><div class="fx-sub">NEW PLAYER ENTERING THE AUCTION!</div>
+    case 'wild': return `<div class="fx fx-wild"><div class="fx-bg fx-beat"></div><div class="fx-bg fx-rays"></div>
+      <div class="fx-ring"></div><div class="fx-ring r2"></div>${sparksHTML(big ? 36 : 20)}<div class="fx-bg fx-flash"></div>
+      <div class="fx-k">🃏 WILD CARD ALERT</div><div class="fx-sub">NEW PLAYER ENTERING THE AUCTION!</div>
       <div class="cd"><span>3</span><span>2</span><span>1</span></div>
       <div class="fx-late" style="--d:3s">${ph}<div class="fx-name">${p ? esc(p.name) : ''}</div><div class="fx-meta">${p ? `${roleText(p)} · BASE ${money(lotBase(p))} · RATING ${esc(p.rating)}` : ''}</div></div></div>`;
     case 'reveal': return `<div class="fx fx-reveal"><div class="fx-k">🕵️ MYSTERY PLAYER ${p ? esc(p.mcode || '') : ''}</div><div class="fx-name" data-scramble="${p ? esc(p.name) : ''}"></div>
@@ -4853,7 +5024,9 @@ function fxHTML(fx, big) {
     case 'alert': return `<div class="fx fx-alert tone-${esc(d.tone || 'red')}"><div class="fx-a-title">${esc(d.title)}</div><div class="fx-a-text">“${esc(d.text)}”</div></div>`;
     case 'set': { const s = S.sets.find(x => x.id === d.setId); const n = s ? S.players.filter(x => x.setId === s.id && x.status !== 'withdrawn').length : 0; return `<div class="fx fx-set"><small>NOW STARTING</small><b>${esc(setLabel(s))}</b><span>${plural(n, 'PLAYER')}</span></div>`; }
     case 'award': return `<div class="fx fx-award"><div class="trophy">🏆</div><small>${esc(d.title)}</small><b>${t ? esc(t.name) : ''}</b>${p ? `<span>${esc(p.name)}</span>` : ''}${d.note ? `<p>${esc(d.note)}</p>` : ''}</div>`;
-    case 'mystery': return `<div class="fx fx-reveal"><div class="fx-k">🕵️ SURPRISE</div><div class="fx-sub">A MYSTERY PLAYER IS ON THE BLOCK!</div>
+    case 'mystery': return `<div class="fx fx-reveal fx-mys"><div class="fx-bg fx-fog"></div><div class="fx-bg fx-scan"></div>
+      ${floatHTML('?', big ? 16 : 8)}<div class="fx-ring"></div><div class="fx-ring r2"></div>
+      <div class="fx-k">🕵️ SURPRISE</div><div class="fx-sub">A MYSTERY PLAYER IS ON THE BLOCK!</div>
       <span class="ph ${big ? 'lg' : 'md'} mys">?</span><div class="fx-meta">PLAYER ID ${p ? esc(p.mcode || '') : ''} · BASE ${p ? money(lotBase(p)) : ''} · CLUES COMING UP</div></div>`;
     case 'clue': return `<div class="fx fx-reveal"><div class="fx-k">🔍 CLUE #${esc(d.n)}</div><div class="fx-name" style="text-transform:none">“${esc(d.text)}”</div></div>`;
   }
