@@ -4412,31 +4412,33 @@ function savePlayerEditor() {
 
 /* ---------- Reports ---------- */
 // [key, label, points, auto]: auto criteria are worked out by the app from the squads (the same for every judge)
-const CRIT = [['rating', '⭐ Average Player Rating', 20, true, '⭐ Avg rating'], ['value', '💰 Value for Money', 20, true, '💰 Value'], ['combo', '⚖️ Balanced Team Combo', 10, true, '⚖️ Combo'], ['batbowl', '🔀 Batting–Bowling Combination', 10, true, '🔀 Bat–bowl'], ['strength', '💪 Team Strength & Match Winners', 15, false, '💪 Strength'], ['versatility', '🔄 Versatility', 10, false, '🔄 Versatility'], ['batting', '🏏 Batting Depth', 6, false, '🏏 Batting'], ['bowling', '🎯 Bowling Strength', 6, false, '🎯 Bowling'], ['wk', '🧤 Wicketkeeping & Fielding', 3, false, '🧤 WK & field']];
+const CRIT = [['rating', '⭐ Average Player Rating', 25, true, '⭐ Avg rating'], ['value', '💰 Value for Money', 25, true, '💰 Value'], ['combo', '⚖️ Balanced Team Combo', 25, true, '⚖️ Combo'], ['batbowl', '🔀 Batting–Bowling Combination', 25, true, '🔀 Bat–bowl']];
+const manualCrit = () => CRIT.some(c => !c[3]);   // false: every criterion is worked out by the app, the judges only check and settle ties
 const half = v => Math.round(v * 2) / 2;
-/* ⭐ Average Player Rating: 1 point for every rating point above 75 (an average of 90 → 15, 95 or more → 20).
-   💰 Value for Money: 10 points for paying exactly the fair price of the squad, up to 20 for bargains
-   (fair price: what players of that rating cost in this auction, in proportion to rating²).
-   ⚖️ Balanced Team Combo: keeper, batters, all-rounders and bowlers equally strong: the gap between the average
-   rating of the strongest and the weakest role group; 5 or less = 10, then 2 off for every 5 more (2.5 off per missing role).
-   🔀 Batting–Bowling Combination: left/right-hand mix among the 5 batting options (2+ of each = 3.5, only 1 of one = 2)
-   + pace/spin mix among the 4 bowling options (the same) + batting as strong as bowling (3, minus 1 for every 3 points
+/* All four criteria are worked out from the squads, 25 points each:
+   ⭐ Average Player Rating: the squad's average rating minus 70 (95 or more → 25, 90 → 20, 80 → 10, 70 or less → 0).
+   💰 Value for Money: high-rated players for low money. 12.5 for paying exactly the squad's fair price, plus 1 for every
+   4% below it and minus 1 for every 4% above (fair price: what players of that rating cost in this auction, ∝ rating²).
+   ⚖️ Balanced Team Combo: keeper, batters, all-rounders and bowlers equally strong: 25 when the average ratings of the
+   strongest and the weakest role group are within 5, then 1 off for every rating point more (5 off per missing role).
+   🔀 Batting–Bowling Combination: left/right-hand mix among the 5 batting options (2+ of each = 10, only 1 of one = 5)
+   + pace/spin mix among the 4 bowling options (the same) + batting as strong as bowling (5, minus 1 for every 2 points
    between the two strength bars). */
 function autoScore(k, tid) {
   const ti = D().ti[tid], sq = ti ? ti.squad : [];
   if (!sq.length) return 0;
-  if (k === 'rating') return half(clamp(sum(sq.map(p => p.rating)) / sq.length - 75, 0, 20));
+  if (k === 'rating') return half(clamp(sum(sq.map(p => p.rating)) / sq.length - 70, 0, 25));
   if (k === 'combo') {
     const avgs = ROLES.map(r => sq.filter(p => p.role === r)).filter(g => g.length).map(g => sum(g.map(p => p.rating)) / g.length);
-    return half(clamp(10 - Math.max(0, Math.max(...avgs) - Math.min(...avgs) - 5) * 0.4 - 2.5 * (ROLES.length - avgs.length), 0, 10));
+    return half(clamp(25 - Math.max(0, Math.max(...avgs) - Math.min(...avgs) - 5) - 5 * (ROLES.length - avgs.length), 0, 25));
   }
   if (k === 'batbowl') {
     const h = sq.filter(p => p.role !== 'BOWL').map(p => (/left/i.test(p.bat) ? 'L' : /right/i.test(p.bat) ? 'R' : ''));
     const kd = sq.filter(p => p.role === 'BOWL' || p.role === 'AR').map(p => p.bowlKind || bowlKindOf(p.bowl));
-    const mixPts = (a, x, y) => { const m = Math.min(a.filter(v => v === x).length, a.filter(v => v === y).length); return m >= 2 ? 3.5 : m === 1 ? 2 : 0; };
-    return half(mixPts(h, 'L', 'R') + mixPts(kd, 'pace', 'spin') + clamp(3 - Math.abs(ti.an.batting - ti.an.bowling) / 3, 0, 3));
+    const mixPts = (a, x, y) => { const m = Math.min(a.filter(v => v === x).length, a.filter(v => v === y).length); return m >= 2 ? 10 : m === 1 ? 5 : 0; };
+    return half(mixPts(h, 'L', 'R') + mixPts(kd, 'pace', 'spin') + clamp(5 - Math.abs(ti.an.batting - ti.an.bowling) / 2, 0, 5));
   }
-  if (k === 'value') { const fair = sum(sq.map(fairPrice)), paid = sum(sq.map(p => p.soldPrice || 0)); return fair ? half(clamp(10 + 20 * (fair - paid) / fair, 0, 20)) : 0; }
+  if (k === 'value') { const fair = sum(sq.map(fairPrice)), paid = sum(sq.map(p => p.soldPrice || 0)); return fair ? half(clamp(12.5 + 25 * (fair - paid) / fair, 0, 25)) : 0; }
   return 0;
 }
 function reportHTML(t) {
@@ -4492,6 +4494,10 @@ function judgeTotals(jid, tid) {
 }
 function standings() {
   const js = S.judging.judges;
+  if (!manualCrit()) return S.teams.map(t => {   // scored by the app alone: final once every squad is full
+    const ti = D().ti[t.id], total = Math.round(sum(CRIT.map(([k]) => autoScore(k, t.id))) * 10) / 10;
+    return { t, per: [], avg: ti.count ? total : null, complete: ti.count >= S.rules.maxSquad };
+  }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || CRIT.reduce((d, [k]) => d || autoScore(k, b.t.id) - autoScore(k, a.t.id), 0));
   return S.teams.map(t => {
     const per = js.map(j => judgeTotals(j.id, t.id));
     const scored = per.filter(x => x.filled);
@@ -4504,7 +4510,7 @@ function awardSuggestion(k) {
   const st = D().st, sold = S.players.filter(p => p.status === 'sold');
   const best = list => list.sort((a, b) => b.rating - a.rating)[0];
   switch (k) {
-    case 'champions': { const s = standings()[0]; return s && s.avg != null ? { tid: s.t.id, note: `Top of the judges' table with ${s.avg} / 100` } : null; }
+    case 'champions': { const s = standings()[0]; return s && s.avg != null ? { tid: s.t.id, note: `Top of the scores with ${s.avg} / 100` } : null; }
     case 'value': return st.bargain ? { tid: st.bargain.p.soldTo, pid: st.bargain.p.id, note: `${money(st.bargain.p.soldPrice)} for a player rated ${st.bargain.p.rating}` } : null;
     case 'war': { const w = st.war, p = w && P(w.pid); return p ? { tid: p.soldTo || (w.top[0] || ''), pid: p.id, note: plural(w.n, 'bid') } : null; }
     case 'mystery': { const p = best(sold.filter(x => x.mystery)); return p ? { tid: p.soldTo, pid: p.id, note: `Rated ${p.rating}, bought for ${money(p.soldPrice)}` } : null; }
@@ -4521,15 +4527,15 @@ PAGES.judging = {
     if (UI.judge >= js.length) UI.judge = 0;
     const j = js[UI.judge];
     $('#pg-judging').innerHTML = `<div class="pg">
-      <div class="pg-head"><div><h1>Judging</h1><p>Each team is scored out of 100. <b>⭐ Average Player Rating (20)</b>, <b>💰 Value for Money (20)</b>, <b>⚖️ Balanced Team Combo (10)</b> and <b>🔀 Batting–Bowling Combination (10)</b> are worked out by the app from the squads, the same for every judge; the judges score the other 40 points. The stat hints under each box are only a guide.</p></div></div>
-      <section class="card"><div class="row" style="justify-content:space-between"><div class="subtabs">${js.map((x, i) => `<button class="${i === UI.judge ? 'on' : ''}" data-act="judge-tab" data-i="${i}">${esc(x.name)}</button>`).join('')}<button data-act="judge-add">+ JUDGE</button></div>
+      <div class="pg-head"><div><h1>Judging</h1><p>Each team is scored out of 100 on four criteria of 25 points each, all worked out by the app from the squads: <b>⭐ Average Player Rating</b>, <b>💰 Value for Money</b>, <b>⚖️ Balanced Team Combo</b> and <b>🔀 Batting–Bowling Combination</b>. The highest total wins.</p></div></div>
+      ${!manualCrit() ? '' : `<section class="card"><div class="row" style="justify-content:space-between"><div class="subtabs">${js.map((x, i) => `<button class="${i === UI.judge ? 'on' : ''}" data-act="judge-tab" data-i="${i}">${esc(x.name)}</button>`).join('')}<button data-act="judge-add">+ JUDGE</button></div>
         ${j ? `<div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:8px"><span>Name</span><input type="text" id="jName" data-in="judge-name" style="width:200px"></label>${js.length > 1 ? '<button class="mini" data-act="judge-remove">Remove judge</button>' : ''}</div>` : ''}</div>
         <div class="table-wrap" style="margin-top:12px"><table class="tbl" id="judgeTbl"><thead><tr><th>Team</th>${CRIT.map(([, l, m, auto, sh]) => `<th class="c" title="${esc(l)}${auto ? ' (worked out by the app)' : ''}">${sh || l}<br><span class="muted">/ ${m}${auto ? ' · auto' : ''}</span></th>`).join('')}<th class="c">TOTAL<br><span class="muted">/ 100</span></th></tr></thead><tbody>
         ${j ? S.teams.map(t => {
           const sc = ((S.judging.scores[j.id] || {})[t.id]) || {}, an = D().ti[t.id].an;
           return `<tr><td>${teamBadge(t.id)}</td>${CRIT.map(([k, , m, auto]) => auto ? `<td class="c auto" title="Worked out by the app from the squad, the same for every judge"><b class="auto-v">${autoScore(k, t.id)}</b><span class="hint">auto</span></td>` : `<td class="c"><input class="score-in" type="number" min="0" max="${m}" step="0.5" data-in="score" data-t="${t.id}" data-k="${k}" data-m="${m}" value="${sc[k] ?? ''}" aria-label="${esc(t.name)} ${k}"><span class="hint">hint ${Math.round((an[k] || 0) * m / 10) / 10}</span></td>`).join('')}<td class="total-cell" id="tot-${t.id}">${judgeTotals(j.id, t.id).total}</td></tr>`;
-        }).join('') : ''}</tbody></table></div></section>
-      <section class="card"><h2>Standings <small>Average of the judges who have scored. Ties are for the judges to settle.</small></h2><div id="standings"></div></section>
+        }).join('') : ''}</tbody></table></div></section>`}
+      <section class="card"><h2>${manualCrit() ? 'Standings <small>Average of the judges who have scored. Ties are for the judges to settle.</small>' : 'Scores &amp; standings <small>Worked out by the app from the squads; they update as players are bought. The judges check them, settle ties and pick the fun awards.</small>'}</h2><div id="standings"></div></section>
       <section class="card"><h2>Fun awards <small>Separate from the judging score. Suggestions come from the auction stats; pick whoever you like.</small></h2><div class="awards" id="awards"></div></section>
     </div>`;
     const jn = $('#jName'); if (jn && j) jn.value = j.name;
@@ -4559,6 +4565,9 @@ PAGES.judging = {
 function standingsHTML() {
   const js = S.judging.judges, rows = standings();
   if (!rows.length) return '<p class="muted">No teams yet.</p>';
+  if (!manualCrit()) return `<div class="table-wrap"><table class="tbl" id="judgeTbl"><thead><tr><th>#</th><th>Team</th>${CRIT.map(([, l, m, , sh]) => `<th class="c" title="${esc(l)}">${sh}<br><span class="muted">/ ${m}</span></th>`).join('')}<th class="c">TOTAL<br><span class="muted">/ 100</span></th><th>Status</th></tr></thead><tbody>
+    ${rows.map((r, i) => `<tr><td class="money">${r.avg != null ? i + 1 : '—'}</td><td>${teamBadge(r.t.id)}</td>${CRIT.map(([k]) => `<td class="c auto"><b class="auto-v">${autoScore(k, r.t.id)}</b></td>`).join('')}<td class="total-cell">${r.avg ?? '—'}</td><td>${r.complete ? '<span class="wchip ok">SQUAD COMPLETE</span>' : '<span class="wchip">BUYING</span>'}</td></tr>`).join('')}
+  </tbody></table></div><p class="muted" style="margin-top:8px">Ties: more ⭐ Average Player Rating points first, then 💰 Value, then ⚖️ Combo, then 🔀 Bat–bowl; still tied, the judges decide.</p>`;
   return `<div class="table-wrap"><table class="tbl"><thead><tr><th>#</th><th>Team</th>${js.map(j => `<th class="c">${esc(j.name)}</th>`).join('')}<th class="c">AVERAGE / 100</th><th>Status</th></tr></thead><tbody>
     ${rows.map((r, i) => `<tr><td class="money">${r.avg != null ? i + 1 : '—'}</td><td>${teamBadge(r.t.id)}</td>${r.per.map(x => `<td class="c money">${x.filled ? x.total : '—'}</td>`).join('')}<td class="total-cell">${r.avg ?? '—'}</td><td>${r.complete ? '<span class="wchip ok">COMPLETE</span>' : '<span class="wchip">SCORING</span>'}</td></tr>`).join('')}
   </tbody></table></div>`;
@@ -5555,8 +5564,8 @@ function datasets() {
         ['Total sold', st.sold, ''], ['Total unsold', st.unsold, st.pool + ' in the unsold pool'],
         ['Mystery players sold', st.mysterySold, ''], ['Wild cards sold', st.wildSold, S.wildUsed.length + ' introduced'], ['Bids placed', st.bids, ''],
       ] },
-    judging: { title: 'Final judging scores & awards', sheet: 'Judging', head: ['Rank', 'Team', ...CRIT.map(c => c[1] + ' /' + c[2]), 'Average total /100', ...judges.map(j => j.name + ' total')],
-      rows: stand.map((r, i) => [r.avg != null ? i + 1 : '', r.t.name, ...CRIT.map(c => critAvg(r.t.id, c[0])), r.avg ?? '', ...r.per.map(x => (x.filled ? x.total : ''))])
+    judging: { title: 'Final judging scores & awards', sheet: 'Judging', head: ['Rank', 'Team', ...CRIT.map(c => c[1] + ' /' + c[2]), (manualCrit() ? 'Average total' : 'Total') + ' /100', ...(manualCrit() ? judges.map(j => j.name + ' total') : [])],
+      rows: stand.map((r, i) => [r.avg != null ? i + 1 : '', r.t.name, ...CRIT.map(c => critAvg(r.t.id, c[0])), r.avg ?? '', ...(manualCrit() ? r.per.map(x => (x.filled ? x.total : '')) : [])])
         .concat([[], ['Fun awards', 'Team', 'Player', 'Note']], AWARDS.map(([k, l]) => { const a = S.awards[k] || {}; return [l, tn(a.tid), pn(a.pid), a.note || '']; })) },
   };
 }
