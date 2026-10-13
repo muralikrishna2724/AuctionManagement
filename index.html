@@ -573,6 +573,7 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .wd-list .nm{font:800 17px/1.1 var(--f-cond);letter-spacing:.03em;min-width:0}
 .wd-list .nm small{display:block;font:500 13px var(--f-body);color:var(--muted);letter-spacing:0}
 .notice{border-radius:10px;padding:10px 12px;font-size:14px;background:rgba(201,146,14,.1);color:var(--gold)}
+.notice.good{background:rgba(61,214,140,.12);color:var(--green)}
 .notice.bad{background:rgba(229,72,77,.12);color:var(--red)}
 .notice.info{background:rgba(79,145,205,.12);color:#9cc9f2}
 .notice.ok{background:rgba(61,214,140,.1);color:var(--green)}
@@ -1667,16 +1668,41 @@ function iplToPlayer(x, id) {
    rules.plan.extra spare ones, best rated first from the built-in pool. The mystery players and wild
    cards are drawn from inside the sets, spread across all four, and keep their role set. */
 const ROLE_SETS = [['BAT', 'BATTERS'], ['AR', 'ALL-ROUNDERS'], ['WK', 'WICKETKEEPERS'], ['BOWL', 'BOWLERS']];
+/* Set sizes, and how many overseas players each set gets: its share of the overseas places teams can fill
+   (teams × max overseas, split by how many of that role teams need) plus the same share of the spare players.
+   Everyone else in the set is Indian, so every team can fill its squad within the overseas limit. */
 function roleSetSizes(pl = S.rules.plan, nTeams = S.teams.length) {
-  return ROLE_SETS.map(([r, name]) => {
+  const R = S.rules, z = ROLE_SETS.map(([r, name]) => {
     const need = (pl[r] || 0) * nTeams, size = need + (pl.extra || 0);
-    return { r, name, need, extra: pl.extra || 0, size, avail: IPL.players.filter(x => x.r === r).length };
+    return { r, name, need, extra: pl.extra || 0, size, avail: IPL.players.filter(x => x.r === r).length,
+      availIn: IPL.players.filter(x => x.r === r && !x.os).length, availOs: IPL.players.filter(x => x.r === r && x.os).length };
   });
+  const needAll = sum(z.map(x => x.need)) || 1, slots = nTeams * (R.maxOverseas || 0);
+  const share = (R.maxOverseas || 0) / Math.max(1, R.maxSquad || 1);
+  const raw = z.map(x => slots * x.need / needAll);   // split the overseas places by largest remainder so they add up exactly
+  const base = raw.map(Math.floor);
+  let left = Math.min(slots, sum(raw.map(Math.round))) - sum(base);
+  raw.map((v, i) => [v - base[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { base[i]++; left--; } });
+  z.forEach((x, i) => { x.os = Math.min(x.size, base[i] + Math.round(x.extra * share)); x.ind = x.size - x.os; });
+  return z;
+}
+/* Can every team fill a full squad? Indian players plus the overseas players teams are allowed to buy. */
+function roleSetCheck(z = roleSetSizes()) {
+  const R = S.rules, nT = S.teams.length;
+  const os = sum(z.map(x => Math.min(x.os, x.availOs))), ind = sum(z.map(x => x.size)) - os;
+  const usable = ind + Math.min(os, nT * R.maxOverseas), need = nT * R.maxSquad;
+  return { ind, os, usable, need, ok: usable >= need };
 }
 function buildRoleSets(pl = S.rules.plan, rnd = Math.random) {
   const sizes = roleSetSizes(pl);
-  const pick = sizes.map(z => IPL.players.map((x, i) => [x, i]).filter(([x]) => x.r === z.r)
-    .sort((a, b) => b[0].rt - a[0].rt || a[1] - b[1]).slice(0, z.size).map(([x]) => x));
+  const best = (r, os) => IPL.players.map((x, i) => [x, i]).filter(([x]) => x.r === r && !!x.os === os)
+    .sort((a, b) => b[0].rt - a[0].rt || a[1] - b[1]).map(([x]) => x);
+  const pick = sizes.map(z => {   // the best overseas players up to the set's overseas share, the best Indian players for the rest
+    const os = best(z.r, true), ind = best(z.r, false);
+    let nOs = Math.min(z.os, os.length), nIn = Math.min(z.size - nOs, ind.length);
+    nOs = Math.min(os.length, z.size - nIn);   // short of Indian players: top up with overseas ones
+    return ind.slice(0, nIn).concat(os.slice(0, nOs)).sort((a, b) => b.rt - a.rt);
+  });
   // surprise players go round the four sets: mystery #1 in set 1, #2 in set 2 …, wild card #1 in set 2, #2 in set 3 …,
   // so every set gets both kinds (picked at random inside the set, higher ratings more likely)
   const want = [];
@@ -1715,6 +1741,8 @@ function applyRoleSets(rnd) {
   S.players = res.players; S.sets = res.sets;
   S.queue = []; S.live = emptyLive(); S.lots = []; S.wildUsed = []; S.sample = false; S.started = false;
   S.rules.mystery.max = pl.mystery; S.rules.wild.max = pl.wild;   // every surprise player gets to pop in
+  // no team may take more than one above the plan of a role, so the sets can't run dry for the last teams
+  ROLES.forEach(r => { S.rules.roleMax[r] = Math.max(S.rules.roleMin[r] || 0, (pl[r] || 0) + 1); });
   S.rules.order = 'sets';
   S.surprise = { since: 0, gap: Math.round(S.rules.surprise.min + (rnd || Math.random)() * Math.max(0, S.rules.surprise.max - S.rules.surprise.min)), n: { mystery: 0, wild: 0 } };
   rebuildQueue();
@@ -1729,7 +1757,7 @@ function loadRoleSetsFromSetup() {
   const total = sum(z.map(x => x.size));
   confirmBox({
     title: 'BUILD THE 4 SETS', tone: 'gold', ok: 'BUILD SETS',
-    html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${total} players in 4 sets: ${z.map(x => `${x.name.toLowerCase()} ${x.size}`).join(', ')}? ${pl.mystery} mystery players and ${pl.wild} wild cards are drawn from inside the sets.</p><p class="muted">Players come up set by set, at random inside each set.</p>`,
+    html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${total} players in 4 sets: ${z.map(x => `${x.name.toLowerCase()} ${x.size}`).join(', ')}? ${pl.mystery} mystery players and ${pl.wild} wild cards are drawn from inside the sets.</p><p class="muted">Players come up set by set, at random inside each set. Each team's role limit becomes one above these numbers (${ROLE_SETS.map(([r, nm]) => `${(pl[r] || 0) + 1} ${nm.toLowerCase()}`).join(', ')}), so no team can take so many of one role that others run short.</p>`,
     onOk: () => {
       commit(() => applyRoleSets(), { ck: 'Build 4 sets' });
       if (UI.page === 'setup') PAGES.setup.build();
@@ -1768,7 +1796,7 @@ function iplPlayers(o, rnd = Math.random) {
 const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players and wild cards
 
 /* ---------- Sample auction (clearly marked; replace in Setup) ---------- */
-const SAMPLE_V = 3;   // bump to rebuild practice auctions saved by older versions
+const SAMPLE_V = 4;   // bump to rebuild practice auctions saved by older versions
 function buildSample() {
   const s = blankState();
   s.sample = true;
@@ -2036,7 +2064,7 @@ function checkBid(tid, amt, p, o = {}) {
     let needAfter = 0;
     for (const r of ROLES) needAfter += Math.max(0, (R.roleMin[r] || 0) - ti.roles[r] - (p.role === r ? 1 : 0));
     const roomAfter = R.maxSquad - (ti.count + 1);
-    if (needAfter > roomAfter) soft.push(`⚠️ ROLE MINIMUMS CAN'T BE MET AFTER THIS BUY`);
+    if (needAfter > roomAfter) hard.push(`❌ NO ROOM LEFT FOR THE ROLE MINIMUMS`);   // keeps every squad completable
   }
   if (amt <= ti.purse && ti.purse - amt < R.lowPurse) soft.push('⚠️ LOW PURSE AFTER THIS BID: ' + money(ti.purse - amt));
   return { hard, soft };
@@ -4266,11 +4294,12 @@ const SETUP = {
     const sets4 = `<section class="card" style="border-top:6px solid var(--green)"><h2>🗂 Auction in 4 sets <small>Batters, all-rounders, wicketkeepers and bowlers: enough for every team, plus spare players</small></h2>
         <p>Set how many players of each role every team should be able to buy, and how many spare players each set gets (10 to 15). Each set is filled with the best rated players of that role from the ${IPL.players.length} in the list. The mystery players and wild cards are drawn from inside the sets and pop in by surprise.</p>
         <div class="form-grid">${ROLE_SETS.map(([r, nm]) => fld(nm.charAt(0) + nm.slice(1).toLowerCase() + ' per team', 'rules.plan.' + r, 'int', { min: 0, max: 15 })).join('')}${fld('Spare players per set', 'rules.plan.extra', 'int', { min: 10, max: 15 })}${fld('🕵️ Mystery players', 'rules.plan.mystery', 'int', { min: 0, max: 20 })}${fld('🃏 Wild cards', 'rules.plan.wild', 'int', { min: 0, max: 20 })}</div>
-        <div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Set</th><th class="r">Per team</th><th class="r">× ${nT} teams</th><th class="r">+ spare</th><th class="r">Players in the set</th><th class="r">In the list</th></tr></thead><tbody>
-          ${z.map((x, i) => `<tr><td class="pname">SET ${i + 1} · ${x.name}</td><td class="r">${pl[x.r] || 0}</td><td class="r">${x.need}</td><td class="r">${x.extra}</td><td class="r"><b>${x.size}</b></td><td class="r ${x.size > x.avail ? 'bad' : 'muted'}">${x.avail}</td></tr>`).join('')}
-          <tr><td class="pname">TOTAL</td><td class="r">${perTeam}</td><td class="r">${perTeam * nT}</td><td class="r">${4 * (pl.extra || 0)}</td><td class="r"><b>${sum(z.map(x => x.size))}</b></td><td></td></tr></tbody></table></div>
+        <div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Set</th><th class="r">Per team</th><th class="r">× ${nT} teams</th><th class="r">+ spare</th><th class="r">Players in the set</th><th class="r">🇮🇳 Indian</th><th class="r">🌎 Overseas</th><th class="r">In the list</th></tr></thead><tbody>
+          ${z.map((x, i) => `<tr><td class="pname">SET ${i + 1} · ${x.name}</td><td class="r">${pl[x.r] || 0}</td><td class="r">${x.need}</td><td class="r">${x.extra}</td><td class="r"><b>${x.size}</b></td><td class="r">${x.ind}</td><td class="r">${x.os}</td><td class="r ${x.size > x.avail ? 'bad' : 'muted'}">${x.avail}</td></tr>`).join('')}
+          <tr><td class="pname">TOTAL</td><td class="r">${perTeam}</td><td class="r">${perTeam * nT}</td><td class="r">${4 * (pl.extra || 0)}</td><td class="r"><b>${sum(z.map(x => x.size))}</b></td><td class="r">${sum(z.map(x => x.ind))}</td><td class="r">${sum(z.map(x => x.os))}</td><td></td></tr></tbody></table></div>
+        ${(() => { const c = roleSetCheck(z); return `<p class="notice ${c.ok ? 'good' : 'bad'}" style="margin-top:10px">${c.ok ? '✅' : '⚠️'} ${c.ind} Indian players + ${Math.min(c.os, nT * S.rules.maxOverseas)} of the ${c.os} overseas players can be bought (each team takes at most ${S.rules.maxOverseas} overseas): ${c.usable} for the ${c.need} places in ${nT} full squads of ${S.rules.maxSquad}${c.ok ? `, with ${c.usable - c.need} to spare.` : `. That is ${c.need - c.usable} short: add spare players or lower the numbers.`}</p>`; })()}
         ${perTeam !== S.rules.maxSquad ? `<p class="notice" style="margin-top:10px">${perTeam} players per team in the sets; the maximum squad is ${S.rules.maxSquad} (Auction rules).</p>` : ''}${ROLES.some(r => (pl[r] || 0) < (S.rules.roleMin[r] || 0)) ? `<p class="notice" style="margin-top:10px">Some roles are below the minimum each team needs (Auction rules → Players per role).</p>` : ''}
-        <div class="row" style="margin-top:12px"><button class="btn green" data-act="sets4-load">🗂 BUILD THE 4 SETS</button><span class="muted">Replaces the current player list. Players then come up set by set, at random inside each set.</span></div></section>`;
+        <div class="row" style="margin-top:12px"><button class="btn green" data-act="sets4-load">🗂 BUILD THE 4 SETS</button><span class="muted">Replaces the current player list. Players then come up set by set, at random inside each set, and each team's limit per role becomes one above the numbers here.</span></div></section>`;
     return sets4 + `<section class="card" style="border-top:6px solid var(--gold)"><h2>🏏 IPL players <small>${IPL.players.length} players: ${n26} from the IPL 2026 auction, ${cnt(x => x.pa)} from the IPL auctions of 2013–2022 and ${cnt(x => x.ip)} more who have played in the IPL since 2013</small></h2>
         <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers): legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Every player is loaded by default; for a shorter auction, lower <b>Players in the main auction</b> and the best rated stay in. Only players from 2013 to 2026 are in the list: everyone sold at an IPL auction in those years or who played an IPL season since 2013. Players with IPL matches get their role, career stats and special-ability tags from the IPL match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players and wild cards are drawn from the same group. To decide yourself, press <b>✅ CHOOSE PLAYERS</b>: set how many players to keep, fill the list with the best rated or at random (by role, source or overseas if you like), and tick or untick anyone.</p>
         <div class="form-grid"><label class="f"><span>Players in the main auction</span><input id="iplMain" type="number" min="10" max="${IPL.players.length}" value="${suggest}"></label>
