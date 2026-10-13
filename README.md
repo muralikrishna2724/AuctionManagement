@@ -36,7 +36,7 @@ All steps:
 - **Projector shows the player, not the numbers**: the big screen shows the player's photo, role, batting and bowling, rating and tags; their IPL career stats stay on the auctioneer's control-room screen.
 - **Next player kept hidden on the projector**: after each sale the projector shows who bought the player (photo, team and price) while the next player stays hidden behind a "Next player coming up" card. Press `Enter` (or **SHOW PLAYER ON PROJECTOR**) to reveal them, and `Enter` again to open the bidding. Turn it off in **Setup → Sets & order**.
 - **Automatic bid step**: the opening bid is the player's base price. Each team button, `Space` or number key then adds **₹0.25 Cr while the bid is below ₹2 Cr** and **₹0.50 Cr once it reaches ₹2 Cr** (… ₹1.75 Cr → ₹2 Cr → ₹2.5 Cr → ₹3 Cr …). The bid panel shows both steps and highlights the one in use. There are no other raise or custom-amount buttons.
-- **Control room**: the player on the block, current bid, one-click team bids, SOLD / UNSOLD / UNDO / PASS / RTM, team purses, the next-players queue and a live feed, all on one screen.
+- **Control room**: the player on the block, current bid, one-click team bids, SOLD / UNSOLD / UNDO / PASS, team purses, the next-players queue and a live feed, all on one screen.
 - **Manual bid close**: there is no countdown timer. The auctioneer closes each player by hand: click the **BIDDING** box (or press `G`) to call *going once*, then *going twice*, then close. Closing sells to the highest bidder, or marks the player unsold if nobody bid. Any new bid reopens the bidding. The projector shows each call.
 - **Auction in 4 sets**: **Setup → Players → 🗂 Auction in 4 sets** builds the auction as four role sets: batters, all-rounders, wicketkeepers and bowlers. Each set holds enough players for every team to fill that role (by default 5 batters, 3 all-rounders, 2 wicketkeepers and 5 bowlers per team, so 15 × 10 teams) plus 10 to 15 spare players (12 by default), best rated first from the 741. The mystery players (5) and wild cards (4) are drawn from inside the sets, so every set has some, and they still pop in by surprise; all of them come up, even if the queue runs out first. Each set gets a fixed share of overseas players (its part of the 40 that 10 teams × 4 can buy, plus a few spare) and the rest are the best Indian players, so the default 198 players are 147 Indian and 51 overseas: 187 can actually be bought for the 150 squad places. Building the sets also limits each team to one above the plan per role (6 batters, 4 all-rounders, 3 wicketkeepers, 6 bowlers), and a bid that would leave a team no room for its role minimums is blocked, so no team can take so many of one role that others run short. The Setup table shows the Indian / overseas split and confirms every team can fill a full squad. In 30 simulated auctions, every team reached 15 players with its role minimums and the overseas limit met. Players come up set by set, at random inside each set. The practice auction uses these sets.
 - **Surprises spread through the whole auction**: the gap to the next mystery player or wild card follows how many players and surprises are left (give or take a quarter), so with the 4 sets they turn up in every set, about every 20 players, right to the bowlers. Turn it off in **Setup → Surprises** to use a fixed gap instead.
@@ -49,7 +49,7 @@ All steps:
 - **Handler control over surprises**: the 🎲 box in the control room shows only the auctioneer who pops in next. Click it to pick a different mystery or wild card player, turn any available player into one, take a fresh random pick, or **pop one in now**. While a surprise player is on the block and nobody has bid yet, the same box swaps them for someone else, and the first player goes back to the surprise pool.
 - **Budget safety**: blocks bids over a team's purse or past its squad, overseas or role limits, and warns about low purses and unmet role minimums.
 - **The 10 IPL franchises as teams**: Chennai Super Kings, Delhi Capitals, Gujarat Titans, Kolkata Knight Riders, Lucknow Super Giants, Mumbai Indians, Punjab Kings, Rajasthan Royals, Royal Challengers Bengaluru and Sunrisers Hyderabad. Their names and codes (CSK, DC, GT, KKR, LSG, MI, PBKS, RR, RCB, SRH) are fixed; in **Setup → Event & teams** you fill in each team's owner / manager, and can change its colour or upload a logo you have permission to use. Auctions saved by older versions take the franchise names in order and keep their owners, purses and players.
-- **Right to Match**, with an optional final raise. Each franchise gets the RTM for its last IPL players.
+- **No Right to Match**: RTM isn't used in this auction; every player goes to the highest bidder.
 - **Event logo**: upload your college or event logo in **Setup → Event & teams** and it shows on the projector (top bar and the “starts soon” screen). Use a logo you have permission to use.
 - **Projector view**: press `V`, or open the page in a second window with `#projector` at the end of the address.
 - **Corrections**: change a team or price, re-auction, send to the unsold pool, adjust purses, restore an earlier state. Nothing is deleted from the history.
@@ -68,7 +68,6 @@ All steps:
 | `N` / `P` | Next / previous player (`N` brings a random one when you pick players yourself) |
 | `K` | Pick the next player yourself |
 | `M` | Mystery player on the block: show the next clue (revealed when sold) |
-| `T` | Right to Match |
 | `X` | Pass |
 | `A` | Breaking news alert |
 | `V` / `F` | Projector view / full screen |
@@ -85,7 +84,7 @@ Photos need internet. The app tries the dataset's image link first, then a photo
 
 ## Importing your own players
 
-Use a CSV or Excel file with a header row. Recognised columns: Player ID, Name, Role, Batting, Bowling, Rating, Base Price, Category, Overseas, Tags, Mystery, Wild Card, Set, RTM Team, Clues, Photo URL. Separate several tags or clues with `|`. **Players → CSV template** downloads an example file.
+Use a CSV or Excel file with a header row. Recognised columns: Player ID, Name, Role, Batting, Bowling, Rating, Base Price, Category, Overseas, Tags, Mystery, Wild Card, Set, Clues, Photo URL. Separate several tags or clues with `|`. **Players → CSV template** downloads an example file.
 
 ## Data credits
 

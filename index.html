@@ -345,7 +345,7 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .chip.s-warn .c-reason{color:var(--gold)}
 .chip.shake{animation:shake .35s}
 @keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
-.bp-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,1.6fr);gap:8px;margin-top:auto;position:sticky;bottom:0;z-index:2;background:var(--navy-2);padding-top:8px;box-shadow:0 -10px 14px -8px var(--navy-2)}
+.bp-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.6fr);gap:8px;margin-top:auto;position:sticky;bottom:0;z-index:2;background:var(--navy-2);padding-top:8px;box-shadow:0 -10px 14px -8px var(--navy-2)}
 .act{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:70px;border:0;border-radius:var(--r);font:900 21px/1 var(--f-cond);letter-spacing:.06em;text-transform:uppercase;color:#fff;white-space:nowrap}
 .act kbd{font-size:11px}
 .act:hover{filter:brightness(1.12)}
@@ -1239,7 +1239,7 @@ const AUTO_SETS = [
 
 function defaultRules() {
   return {
-    purse: cr2l(100), minSquad: 11, maxSquad: 15, maxOverseas: 4, rtmCount: 1, rtmRaise: false,
+    purse: cr2l(100), minSquad: 11, maxSquad: 15, maxOverseas: 4, rtmCount: 0, rtmRaise: false,   // Right to Match is not used
     roleMin: { BAT: 3, BOWL: 3, AR: 2, WK: 1 }, roleMax: { BAT: 7, BOWL: 7, AR: 5, WK: 3 },
     jumps: [cr2l(0.25), cr2l(0.5), cr2l(1), cr2l(2)],
     slabs: [{ upto: cr2l(2), step: cr2l(0.25) }, { upto: cr2l(10), step: cr2l(0.5) }, { upto: null, step: cr2l(1) }],
@@ -1296,7 +1296,8 @@ function migrate(s) {
     else if (dr[k] && typeof dr[k] === 'object' && !Array.isArray(dr[k])) s.rules[k] = Object.assign({}, dr[k], s.rules[k]);
   }
   delete s.rules.timer;
-  s.rules.mystery.reveal = 'after';   // mystery players are only ever revealed when a team buys them
+  s.rules.mystery.reveal = 'after';
+  s.rules.rtmCount = 0;   // Right to Match is not used in this auction   // mystery players are only ever revealed when a team buys them
   s.live = Object.assign(emptyLive(), s.live || {});
   delete s.live.timer;
   s.players = (s.players || []).map(p => newPlayer(p));
@@ -1731,7 +1732,6 @@ function buildRoleSets(pl = S.rules.plan, rnd = Math.random) {
     const k = surprise.get(x);
     if (k === 'mystery') { p.mystery = true; p.mcode = 'M-' + pad2(++nm); p.clues = autoClues(p); }
     else if (k === 'wild') { p.wild = true; p.wcode = 'WC-' + pad2(++nw); }
-    p.prevTeam = iplTeamFor(p.iplTeam);
     out.push(p);
   }));
   out.filter(p => !p.mystery && !p.wild).sort((a, b) => b.rating - a.rating).slice(0, 10).forEach(p => { p.category = 'Marquee'; });
@@ -1791,7 +1791,6 @@ function iplPlayers(o, rnd = Math.random) {
     else { p.wild = true; p.wcode = 'WC-' + pad2(++nw); }
     out.push(p);
   });
-  out.forEach(p => { p.prevTeam = iplTeamFor(p.iplTeam); });
   return out;
 }
 
@@ -1799,7 +1798,7 @@ function iplPlayers(o, rnd = Math.random) {
 const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players and wild cards
 
 /* ---------- Sample auction (clearly marked; replace in Setup) ---------- */
-const SAMPLE_V = 5;   // bump to rebuild practice auctions saved by older versions
+const SAMPLE_V = 6;   // bump to rebuild practice auctions saved by older versions
 function buildSample() {
   const s = blankState();
   s.sample = true;
@@ -1813,9 +1812,6 @@ function buildSample() {
   applyRoleSets(rand);
   S.sample = true;
   S.started = true;
-  // a few "last year's college auction" RTM holders, so RTM shows up in the sample
-  const tidOf = code => S.teams.find(t => t.short === code).id;
-  [['P003', 'RCB'], ['P012', 'MI'], ['P018', 'CSK'], ['P027', 'DC'], ['P033', 'SRH']].forEach(([id, code]) => { const p = S.players.find(x => x.id === id); if (p) p.prevTeam = tidOf(code); });
   autoBuildSets();
   RNG = rand;
   rebuildQueue();
@@ -2089,6 +2085,7 @@ function shortReason(r) {
 
 /* RTM availability for the current lot */
 function rtmOption(p, l) {
+  return null;   // Right to Match is not used in this auction
   if (!p || !l || !p.prevTeam) return null;
   if (p.wild && !S.rules.wild.rtm) return null;
   const t = T(p.prevTeam);
@@ -2642,6 +2639,7 @@ function markUnsold(pool) {
 
 /* ---------- RTM ---------- */
 function rtmKey() {
+  return toast('Right to Match is not used in this auction.', 'info');
   const p = lotPlayer(), l = lead();
   if (!p || S.live.phase !== 'bidding') return toast('RTM is used once bidding has started.', 'info');
   if (!l) return toast('RTM needs a bid to match.', 'info');
@@ -3185,7 +3183,6 @@ function playerBadges(p, hf, hidden) {
   if (!hidden && p.s26) b.push(`<span class="tag" title="Bought at the real IPL 2026 auction">🏷 IPL 2026: ${esc(IPL_ABBR[p.s26.t] || p.s26.t)} ${money(p.s26.p)}</span>`);
   else if (!hidden && p.pa) b.push('<span class="tag" title="Sold at an IPL auction between 2013 and 2022">📜 IPL auctions 2013–22</span>');
   if (p.round2) b.push('<span class="tag">♻ UNSOLD ROUND</span>');
-  if (!hidden && p.prevTeam && T(p.prevTeam) && (!p.wild || S.rules.wild.rtm)) b.push(`<span class="tag" style="color:#9cc9f2">🔁 RTM: ${esc(T(p.prevTeam).short)}</span>`);
   return b.join('');
 }
 /* "Change player" on the control-room card: swap the player on the block before anyone bids. */
@@ -3340,7 +3337,6 @@ function bidHTML(p) {
     <div class="bp-actions">
       <button class="act undo" data-act="undo"><span>UNDO</span><kbd>R</kbd></button>
       <button class="act pass" data-act="pass"><span>PASS</span><kbd>X</kbd></button>
-      <button class="act rtm" data-act="rtm" ${l ? '' : 'disabled'}><span>RTM</span><kbd>T</kbd></button>
       <button class="act unsold" data-act="unsold"><span>UNSOLD</span><kbd>U</kbd></button>
       <button class="act sold" data-act="sold" ${l ? '' : 'disabled'}><span>🔨 SOLD</span><kbd>S</kbd></button>
     </div>
@@ -3373,7 +3369,7 @@ function renderTeams() {
   const rows = list.map(t => {
     const ti = d.ti[t.id], w = ti.warn[0];
     return `<button class="trow ${l && l.tid === t.id ? 'lead' : ''}" data-act="team" data-team="${t.id}" style="--tc:${esc(t.color)}">${logoHTML(t, 'sm')}
-      <span class="tr-main"><span class="tr-name">${esc(t.name)}</span><span class="tr-sub">${ti.count}/${R.maxSquad} players · 🌎 ${ti.overseas}/${R.maxOverseas} · RTM ${ti.rtmLeft}/${R.rtmCount}</span>${w ? `<span class="tr-warn ${w.tone}">${esc(w.text)}${ti.warn.length > 1 ? ` · +${ti.warn.length - 1}` : ''}</span>` : ''}</span>
+      <span class="tr-main"><span class="tr-name">${esc(t.name)}</span><span class="tr-sub">${ti.count}/${R.maxSquad} players · 🌎 ${ti.overseas}/${R.maxOverseas}</span>${w ? `<span class="tr-warn ${w.tone}">${esc(w.text)}${ti.warn.length > 1 ? ` · +${ti.warn.length - 1}` : ''}</span>` : ''}</span>
       <span class="tr-purse"><b class="${ti.purse < R.lowPurse ? 'low' : ''}">${money(ti.purse)}</b><small>max bid ${money(ti.maxBid)}</small></span></button>`;
   }).join('');
   patch($('#cr-teams'), `<header class="ph-head"><h3>TEAMS · PURSE <span>${S.teams.length}</span></h3><div class="tools"><button class="mini" data-act="team-sort">${UI.teamSort === 'purse' ? 'By purse' : 'By order'}</button></div></header>
@@ -3838,7 +3834,7 @@ function fireDraft() {
 const KEYS = [
   ['SPACE', 'Next bid (+₹0.25 Cr below ₹2 Cr, +₹0.50 Cr from ₹2 Cr). In a bidding war the other team comes back in at the next amount'], ['1 – 9, 0', 'Bid for teams 1 to 10'],
   ['G', 'Going once, going twice, then close the bidding'], ['S', 'SOLD'], ['U', 'UNSOLD'], ['R', 'UNDO the last bid, or the last sale'], ['N', 'Next player (a random one when you pick players yourself)'], ['K', 'Pick the next player yourself'], ['P', 'Previous player'],
-  ['M', 'Mystery player on the block: show the next clue (the player is revealed when sold)'], ['T', 'Right to Match'],
+  ['M', 'Mystery player on the block: show the next clue (the player is revealed when sold)'],
   ['X', 'Pass: mark teams that are out'], ['A', 'Breaking news alert'], ['V', 'Projector view on this screen'],
   ['F', 'Full screen'], ['ENTER', 'Start the auction, show the next player on the projector, open the bidding, or confirm'], ['ESC', 'Cancel, close, or hide an alert'], ['?', 'This list'],
 ];
@@ -3863,7 +3859,7 @@ function openSampleInfo() {
   openModal({
     id: 'sample', tone: 'gold', title: 'SAMPLE AUCTION',
     body: `<p>This is a practice auction: the 10 IPL franchises, run by made-up college owners, bidding for the real players sold at the IPL 2026 auction and the best IPL players of 2013–2026. It is 40 players in, with a live bidding war on the current player.</p>
-      <p>Try it. Tap a team to bid and press <kbd>S</kbd> to sell (Kolkata Knight Riders hold an RTM card for this player). A mystery player or wild card pops in on its own right after this sale.</p>
+      <p>Try it. Tap a team to bid and press <kbd>S</kbd> to sell. A mystery player or wild card pops in on its own right after this sale.</p>
       <p>When you are ready, set up your own event in Setup. “Start fresh” removes all sample teams and players.</p>`,
     foot: `<button class="btn ghost" data-act="modal-close">KEEP EXPLORING</button><button class="btn ghost" data-act="reset-results">KEEP TEAMS & PLAYERS, CLEAR RESULTS</button><button class="btn gold" data-act="fresh-start">START FRESH</button>`,
   });
@@ -3897,7 +3893,6 @@ function teamCardHTML(t, o = {}) {
       <div class="k big"><span>PURSE LEFT</span><b class="${ti.purse < R.lowPurse ? 'low' : ''}">${money(ti.purse)}</b></div>
       <div class="k"><span>PLAYERS</span><b>${ti.count} / ${R.maxSquad}</b></div>
       <div class="k"><span>TOTAL SPENT</span><b>${money(ti.spent)}</b></div>
-      <div class="k"><span>RTM USED</span><b>${ti.rtmUsed} / ${R.rtmCount}</b></div>
       <div class="k"><span>MAX BID NOW</span><b>${money(ti.maxBid)}</b></div>
     </div>
     <div class="tc-comp"><h4>COMPOSITION</h4><ul>${comp.map(([l, v, m]) => `<li class="${m && v < m ? 'short' : ''}"><span>${l}</span><b>${v}${m ? `<small class="muted"> · min ${m}</small>` : ''}</b></li>`).join('')}<li><span>🌎 Overseas</span><b>${ti.overseas}<small class="muted"> · max ${R.maxOverseas}</small></b></li></ul></div>
@@ -3924,7 +3919,7 @@ function playersFiltered() {
 PAGES.players = {
   build() {
     $('#pg-players').innerHTML = `<div class="pg">
-      <div class="pg-head"><div><h1>Players</h1><p>The full database. Edit details, mark mystery and wild card players, set the original team for RTM, and sort players into auction sets.</p></div>
+      <div class="pg-head"><div><h1>Players</h1><p>The full database. Edit details, mark mystery and wild card players, and sort players into auction sets.</p></div>
         <div class="pg-actions">
           <button class="btn gold" data-act="pl-add">+ ADD PLAYER</button>
           <label class="btn ghost" style="position:relative">IMPORT CSV / EXCEL<input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" data-ch="import-file" style="position:absolute;inset:0;opacity:0;cursor:pointer" aria-label="Import players from CSV or Excel"></label>
@@ -3992,7 +3987,6 @@ function openPlayerEditor(pid) {
         <label class="f"><span>Category</span><select id="peCat">${['Marquee', 'Capped', 'Uncapped'].map(c => `<option ${p.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
         <label class="f"><span>Overseas</span><select id="peOs"><option value="0">No</option><option value="1" ${p.overseas ? 'selected' : ''}>Yes 🌎</option></select></label>
         <label class="f"><span>Auction set</span><select id="peSet">${setOpts}</select></label>
-        <label class="f"><span>Original team (RTM)</span><select id="pePrev">${teamOpts}</select></label>
         <label class="f"><span>Special</span><select id="peKind" data-ch="pe-kind"><option value="normal">Normal player</option><option value="mystery" ${kind === 'mystery' ? 'selected' : ''}>🕵️ Mystery player</option><option value="wild" ${kind === 'wild' ? 'selected' : ''}>🃏 Wild card</option></select></label>
       </div>
       <datalist id="bowlList"><option>Right-arm fast</option><option>Right-arm fast-medium</option><option>Right-arm medium</option><option>Left-arm fast</option><option>Left-arm medium</option><option>Right-arm off-break</option><option>Right-arm leg-break</option><option>Left-arm orthodox</option><option>Left-arm wrist-spin</option></datalist>
@@ -4032,7 +4026,7 @@ function savePlayerEditor() {
   const extra = String(v('peTagX') || '').split(',').map(s => s.trim()).filter(Boolean);
   const data = {
     id, name, role: v('peRole'), bat: v('peBat'), bowl: String(v('peBowl') || '').trim(), rating: clamp(parseInt(v('peRating'), 10) || 0, 0, 100),
-    base: Math.max(0, cr2l(v('peBase') || 0)), category: v('peCat'), overseas: v('peOs') === '1', setId: v('peSet'), prevTeam: v('pePrev'),
+    base: Math.max(0, cr2l(v('peBase') || 0)), category: v('peCat'), overseas: v('peOs') === '1', setId: v('peSet'),
     tags: UI.pe.tags.concat(extra.filter(t => !UI.pe.tags.includes(t))), photo: UI.pe.photo || '',
     mystery: kind === 'mystery', wild: kind === 'wild',
   };
@@ -4068,7 +4062,7 @@ function reportHTML(t) {
   const kpi = (k, v) => `<div class="k"><span>${k}</span><b>${v}</b></div>`;
   return `<article class="card report" style="border-top:6px solid ${esc(t.color)}">
     <div class="row" style="justify-content:space-between;margin-bottom:14px"><div class="row">${logoHTML(t, 'lg')}<div><h2 style="font:34px/1 var(--f-display);letter-spacing:.02em">${esc(t.name)}</h2><p class="muted" style="margin:4px 0 0">${esc(t.owner || '')}</p></div></div>
-      <div class="tc-kpis" style="grid-template-columns:repeat(5,auto);gap:8px">${kpi('TOTAL SPENT', money(ti.spent))}${kpi('PURSE REMAINING', money(ti.purse))}${kpi('SQUAD SIZE', ti.count + ' / ' + R.maxSquad)}${kpi('OVERSEAS', ti.overseas)}${kpi('RTM USED', ti.rtmUsed)}</div></div>
+      <div class="tc-kpis" style="grid-template-columns:repeat(4,auto);gap:8px">${kpi('TOTAL SPENT', money(ti.spent))}${kpi('PURSE REMAINING', money(ti.purse))}${kpi('SQUAD SIZE', ti.count + ' / ' + R.maxSquad)}${kpi('OVERSEAS', ti.overseas)}</div></div>
     <div class="two-col">
       <div class="table-wrap">${ti.squad.length ? `<table class="tbl"><thead><tr><th>Player</th><th>Role</th><th class="r">Price</th></tr></thead><tbody>${ti.squad.slice().sort((a, b) => b.soldPrice - a.soldPrice).map(p => `<tr><td class="pname">${esc(p.name)} ${p.overseas ? '🌎' : ''}${p.mystery ? '🕵️' : ''}${p.wild ? '🃏' : ''}${p.acq === 'rtm' ? ' <small class="muted">RTM</small>' : ''}</td><td>${roleText(p)}</td><td class="r money">${money(p.soldPrice)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">No players bought.</p>'}</div>
       <div style="display:flex;flex-direction:column;gap:14px">
@@ -4307,8 +4301,8 @@ const SETUP = {
     const R = S.rules;
     return `<section class="card"><h2>Purse & squad</h2><div class="form-grid">
         ${fld('Starting purse', 'rules.purse', 'money', { hint: R.currency.unit, min: 0 })}${fld('Minimum squad', 'rules.minSquad', 'int', { min: 0 })}${fld('Maximum squad', 'rules.maxSquad', 'int', { min: 1 })}
-        ${fld('Maximum overseas', 'rules.maxOverseas', 'int', { min: 0 })}${fld('RTM cards per team', 'rules.rtmCount', 'int', { min: 0 })}
-      </div><div class="row" style="margin-top:12px">${fld('Allow a final raise before RTM is matched (IPL 2025 style)', 'rules.rtmRaise', 'bool')}</div></section>
+        ${fld('Maximum overseas', 'rules.maxOverseas', 'int', { min: 0 })}
+      </div></section>
       <section class="card"><h2>Players per role <small>Minimums trigger warnings; maximums block bids.</small></h2>
         <div class="role-grid"><span></span><b>MIN</b><b>MAX</b>${ROLES.map(r => `<span>${ROLE_INFO[r].ic} ${ROLE_INFO[r].pl}</span><input type="number" min="0" step="1" data-bind="rules.roleMin.${r}" data-t="int" value="${R.roleMin[r] ?? 0}" aria-label="Minimum ${ROLE_INFO[r].pl}"><input type="number" min="0" step="1" data-bind="rules.roleMax.${r}" data-t="int" value="${R.roleMax[r] ?? ''}" aria-label="Maximum ${ROLE_INFO[r].pl}">`).join('')}</div></section>
       <section class="card"><h2>Bid increment</h2><p>The opening bid is the player's base price. Then each team button, <kbd>SPACE</kbd> or number key adds <b>${money(STEP_LOW)}</b> while the bid is below ${money(STEP_FROM)}, and <b>${money(STEP_HIGH)}</b> once it reaches ${money(STEP_FROM)} (… ₹1.75 Cr → ₹2 Cr → ₹2.5 Cr → ₹3 Cr …).</p></section>
@@ -4339,10 +4333,10 @@ const SETUP = {
         <div class="form-grid"><label class="f"><span>Players in the main auction</span><input id="iplMain" type="number" min="10" max="${IPL.players.length}" value="${suggest}"></label>
           <label class="f"><span>Mystery players</span><input id="iplMys" type="number" min="0" max="30" value="8"></label>
           <label class="f"><span>Wild cards</span><input id="iplWild" type="number" min="0" max="30" value="8"></label></div>
-        <div class="row" style="margin-top:12px"><button class="btn gold" data-act="ipl-load">LOAD IPL PLAYERS</button><button class="btn ghost" data-act="pick-players" title="Choose exactly which players to keep">✅ CHOOSE PLAYERS…</button><span class="muted">Replaces the current player list. Teams named after IPL franchises (for example CSK or Mumbai Indians) get the RTM for that franchise's last players.</span></div>
+        <div class="row" style="margin-top:12px"><button class="btn gold" data-act="ipl-load">LOAD IPL PLAYERS</button><button class="btn ghost" data-act="pick-players" title="Choose exactly which players to keep">✅ CHOOSE PLAYERS…</button><span class="muted">Replaces the current player list.</span></div>
         <p class="muted" style="margin-top:10px;font-size:13px">Data: <a href="https://www.kaggle.com/datasets/sunnyyadav754/ipl-auction-dataset-2026" target="_blank" rel="noopener">IPL Auction Dataset 2026</a> by Sunny Yadav on Kaggle (the 2026 auction list), the IPL Player Auction Dataset from start to now on Kaggle (the 2013–2022 auction players), and <a href="https://github.com/ritesh-ojha/IPL-DATASET" target="_blank" rel="noopener">IPL-DATASET</a> by Ritesh Ojha, MIT License (the 2008–2026 match data behind the career stats, and photo links).</p></section>
       <section class="card"><h2>Import players <small>CSV or Excel. The first row must be column names.</small></h2>
-        <div class="drop"><input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" data-ch="import-file" aria-label="Choose a CSV or Excel file"><b>Choose a CSV or Excel file</b><br>Columns we understand: Player ID, Name, Role, Batting, Bowling, Rating, Base Price, Category, Overseas, Tags, Mystery, Wild Card, Set, RTM Team, Clues, Photo URL.</div>
+        <div class="drop"><input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" data-ch="import-file" aria-label="Choose a CSV or Excel file"><b>Choose a CSV or Excel file</b><br>Columns we understand: Player ID, Name, Role, Batting, Bowling, Rating, Base Price, Category, Overseas, Tags, Mystery, Wild Card, Set, Clues, Photo URL.</div>
         <div class="row" style="margin-top:12px"><button class="btn ghost" data-act="csv-template">DOWNLOAD CSV TEMPLATE</button>
           <label class="btn ghost" style="position:relative">BULK PHOTOS<input type="file" accept="image/*" multiple data-ch="bulk-photos" style="position:absolute;inset:0;opacity:0;cursor:pointer" aria-label="Upload player photos"></label>
           <button class="btn ghost" data-act="photos-save" title="Find a photo for every player and save it inside the auction, so photos show without internet">📷 SAVE PHOTOS OFFLINE</button>
@@ -4395,7 +4389,7 @@ const SETUP = {
           ${fld('When they can appear', 'rules.wild.when', 'select', { opts: [['any', 'Any time'], ['between', 'Only between sets'], ['after', 'After a number of players']] })}
           ${R.wild.when === 'after' ? fld('…after this many players', 'rules.wild.afterN', 'int', { min: 0 }) : ''}
           ${R.wild.specialBase ? fld('Special base price', 'rules.wild.base', 'money', { min: 0 }) : ''}</div>
-        <div class="row" style="gap:20px;margin-top:12px">${fld('Use a special base price for wild cards', 'rules.wild.specialBase', 'bool')}${fld('Wild cards can be RTM\'d', 'rules.wild.rtm', 'bool')}</div>
+        <div class="row" style="gap:20px;margin-top:12px">${fld('Use a special base price for wild cards', 'rules.wild.specialBase', 'bool')}</div>
         <h3 class="lbl" style="margin:16px 0 8px">Wild card players</h3>
         ${wild.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Player</th><th>Role</th><th class="r">Base</th><th>Status</th></tr></thead><tbody>${wild.map(p => `<tr><td class="pid">${esc(p.wcode)}</td><td class="pname">${esc(p.name)}</td><td>${roleText(p)}</td><td class="r money">${money(lotBase(p))}</td><td>${statusPill(p)}${p.surprised ? ' <span class="muted">popped in</span>' : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No wild card players yet. On the Players page, select players and choose “Make wild card”.</p>'}</section>`;
   },
@@ -5027,7 +5021,7 @@ function doImport() {
 }
 function csvTemplate() {
   const rows = [
-    ['Player ID', 'Name', 'Role', 'Batting', 'Bowling', 'Rating', 'Base Price (Cr)', 'Category', 'Overseas', 'Tags', 'Mystery', 'Wild Card', 'Set', 'RTM Team', 'Clues', 'Photo URL'],
+    ['Player ID', 'Name', 'Role', 'Batting', 'Bowling', 'Rating', 'Base Price (Cr)', 'Category', 'Overseas', 'Tags', 'Mystery', 'Wild Card', 'Set', 'Clues', 'Photo URL'],
     ['P001', 'Arjun Rao', 'All-rounder', 'Right Hand', 'Right-arm medium', '86', '1', 'Capped', 'No', 'Power Hitter|Death Bowler|Versatile', 'No', 'No', '', 'Team 04', '', ''],
     ['P002', 'Liam Carter', 'Batter', 'Left Hand', '', '84', '1.5', 'Marquee', 'Yes', 'Power Hitter', 'No', 'No', 'Marquee Players', '', '', ''],
     ['P003', 'Pranay Kothari', 'All-rounder', 'Right Hand', 'Right-arm fast-medium', '88', '1', 'Capped', 'No', 'Finisher', 'Yes', 'No', '', '', 'Known for finishing games.|Can bowl as well.', ''],
@@ -5542,7 +5536,6 @@ function onKey(e) {
     case 'k': openNextPicker(); break;
     case 'p': prevPlayer(); break;
     case 'm': mysteryKey(e.shiftKey); break;
-    case 't': rtmKey(); break;
     case 'x': openPass(); break;
     case 'a': openAlerts(); break;
     default: return;
