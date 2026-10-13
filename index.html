@@ -1835,7 +1835,8 @@ function roleSetCheck(z = roleSetSizes()) {
   const usable = ind + Math.min(os, nT * R.maxOverseas), need = nT * per;
   return { ind, os, usable, need, per, ok: usable >= need };
 }
-function buildRoleSets(pl = S.rules.plan, rnd = Math.random) {
+const SURPRISE_SEED = 20261013;   // every build picks the same mystery players and wild cards, so a printed list stays right
+function buildRoleSets(pl = S.rules.plan, rnd = rng(SURPRISE_SEED)) {
   const sizes = roleSetSizes(pl);
   const best = (r, os) => IPL.players.map((x, i) => [x, i]).filter(([x]) => x.r === r && !!x.os === os)
     .sort((a, b) => b[0].rt - a[0].rt || a[1] - b[1]).map(([x]) => x);
@@ -1846,7 +1847,7 @@ function buildRoleSets(pl = S.rules.plan, rnd = Math.random) {
     return ind.slice(0, nIn).concat(os.slice(0, nOs)).sort((a, b) => b.rt - a.rt);
   });
   // surprise players go round the four sets: mystery #1 in set 1, #2 in set 2 …, wild card #1 in set 2, #2 in set 3 …,
-  // so every set gets both kinds (picked at random inside the set, higher ratings more likely)
+  // so every set gets both kinds (drawn inside the set, higher ratings more likely; the same each build unless rnd says otherwise)
   const want = [];
   for (let i = 0; i < pl.mystery; i++) want.push(['mystery', i % 4]);
   for (let i = 0; i < pl.wild; i++) want.push(['wild', (i + 1) % 4]);
