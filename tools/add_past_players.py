@@ -21,7 +21,7 @@ SAME = {
  'Mohd. Arshad Khan': 'Arshad Khan', 'N. Tilak Varma': 'Tilak Varma', 'Nicolas Pooran': 'Nicholas Pooran',
  'Rashid Khan Arman': 'Rashid Khan', 'Shahrukh Khan': 'M Shahrukh Khan', 'Suyash Prabhudesai': 'Suyash Prabhudessai',
  'Syed Khaleel Ahmed': 'Khaleel Ahmed', 'Varun Chakaravarthy': 'Varun Chakravarthy', 'Yuzvendra Singh Chahal': 'Yuzvendra Chahal',
- 'Yudhvir Charak': 'Yudhvir Singh', 'Shahbaz Ahamad': 'Shahbaz Ahmed', 'Rahul Ajay Tripathi': 'Rahul Tripathi',
+ 'Yudhvir Charak': 'Yudhvir Singh', 'Shahbaz Ahamad': 'Shahbaz Ahmed', 'Rahul Ajay Tripathi': 'Rahul Tripathi', 'Praveen Dubey': 'Pravin Dubey',
  'Sarfaraz Naushad Khan': 'Sarfaraz Khan',
  'Akila Dhananjaya': 'Akila Dananjaya', 'Asif K M': 'KM Asif', 'K.M. Asif': 'KM Asif', 'Barinder Singh Saran': 'Barinder Sran',
  'Barinder Singh Sran': 'Barinder Sran', 'C.Hari Nishaanth': 'C Hari Nishaanth', 'Daniel Christian': 'Dan Christian',

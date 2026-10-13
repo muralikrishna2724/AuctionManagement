@@ -16,7 +16,7 @@ with open(OUT, 'w', newline='', encoding='utf-8') as f:
     w.writerow(cols)
     for p in I['players']:
         s = p.get('st') or {}
-        src = 'IPL 2026 auction' if p.get('s26') else 'IPL auctions 2013-22' if p.get('pa') else 'IPL player 2008-26'
+        src = 'IPL 2026 auction' if p.get('s26') else 'IPL auctions 2013-22' if p.get('pa') else 'IPL player 2013-26'
         w.writerow([p['n'], ROLE.get(p['r'], p['r']), {'L': 'Left Hand', 'R': 'Right Hand'}.get(p['bat'], ''), p['bowl'], p['rt'],
                     p['bp'] / 100, p['cat'], 'Yes' if p['os'] else 'No', '|'.join(t for t in p['tg'] if not t.startswith('❓')), src,
                     (p.get('s26') or {}).get('t', ''), (p['s26']['p'] / 100) if p.get('s26') else '',
