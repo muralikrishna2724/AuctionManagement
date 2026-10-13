@@ -1247,6 +1247,7 @@ function defaultRules() {
     mystery: { hide: 'all', reveal: 'after', max: 5, auto: true, every: 6 },   // reveal: always 'after' (on SOLD)
     wild: { max: 4, when: 'any', afterN: 20, specialBase: false, base: cr2l(2), rtm: false },
     surprise: { on: true, min: 4, max: 8, mysteryPct: 50 },
+    plan: { BAT: 5, AR: 3, WK: 2, BOWL: 5, extra: 12, mystery: 5, wild: 4 },   // the 4 role sets: players per team for each role, + extra per set
     setOverseas: false,
     sound: true,
   };
@@ -1658,6 +1659,82 @@ function iplToPlayer(x, id) {
 }
 /* The auction pool: the best `main + surprises` players by rating. The surprise players are drawn
    at random from that group (higher ratings more likely), so a mystery or wild card can be a star. */
+/* ---------- The auction in 4 role sets ----------
+   Each set holds enough players for every team to fill that role (players per team × teams) plus
+   rules.plan.extra spare ones, best rated first from the built-in pool. The mystery players and wild
+   cards are drawn from inside the sets, spread across all four, and keep their role set. */
+const ROLE_SETS = [['BAT', 'BATTERS'], ['AR', 'ALL-ROUNDERS'], ['WK', 'WICKETKEEPERS'], ['BOWL', 'BOWLERS']];
+function roleSetSizes(pl = S.rules.plan, nTeams = S.teams.length) {
+  return ROLE_SETS.map(([r, name]) => {
+    const need = (pl[r] || 0) * nTeams, size = need + (pl.extra || 0);
+    return { r, name, need, extra: pl.extra || 0, size, avail: IPL.players.filter(x => x.r === r).length };
+  });
+}
+function buildRoleSets(pl = S.rules.plan, rnd = Math.random) {
+  const sizes = roleSetSizes(pl);
+  const pick = sizes.map(z => IPL.players.map((x, i) => [x, i]).filter(([x]) => x.r === z.r)
+    .sort((a, b) => b[0].rt - a[0].rt || a[1] - b[1]).slice(0, z.size).map(([x]) => x));
+  // surprise players go round the four sets: mystery #1 in set 1, #2 in set 2 …, wild card #1 in set 2, #2 in set 3 …,
+  // so every set gets both kinds (picked at random inside the set, higher ratings more likely)
+  const want = [];
+  for (let i = 0; i < pl.mystery; i++) want.push(['mystery', i % 4]);
+  for (let i = 0; i < pl.wild; i++) want.push(['wild', (i + 1) % 4]);
+  const surprise = new Map();
+  for (const [kind, home] of want) {
+    for (let d = 0; d < 4; d++) {
+      const left = pick[(home + d) % 4].filter(x => !surprise.has(x));
+      if (left.length < 2) continue;   // keep at least one normal player in every set
+      let r = rnd() * sum(left.map(x => x.rt * x.rt)), got = left[left.length - 1];
+      for (const x of left) { r -= x.rt * x.rt; if (r <= 0) { got = x; break; } }
+      surprise.set(got, kind);
+      break;
+    }
+  }
+  const sets = ROLE_SETS.map(([r, name]) => ({ id: uid('set'), name, kind: 'rs-' + r }));   // shown as “SET 01 — BATTERS”
+  const out = [];
+  let nm = 0, nw = 0;
+  pick.forEach((list, i) => list.forEach(x => {
+    const p = iplToPlayer(x, 'P' + String(out.length + 1).padStart(3, '0'));
+    p.setId = sets[i].id;
+    if (p.category === 'Marquee') p.category = 'Capped';
+    const k = surprise.get(x);
+    if (k === 'mystery') { p.mystery = true; p.mcode = 'M-' + pad2(++nm); p.clues = autoClues(p); }
+    else if (k === 'wild') { p.wild = true; p.wcode = 'WC-' + pad2(++nw); }
+    p.prevTeam = iplTeamFor(p.iplTeam);
+    out.push(p);
+  }));
+  out.filter(p => !p.mystery && !p.wild).sort((a, b) => b.rating - a.rating).slice(0, 10).forEach(p => { p.category = 'Marquee'; });
+  return { players: out, sets };
+}
+/* Replace the auction's players with the 4 role sets (Setup → Players, and the practice auction). */
+function applyRoleSets(rnd) {
+  const pl = S.rules.plan, res = buildRoleSets(pl, rnd);
+  S.players = res.players; S.sets = res.sets;
+  S.queue = []; S.live = emptyLive(); S.lots = []; S.wildUsed = []; S.sample = false; S.started = false;
+  S.rules.mystery.max = pl.mystery; S.rules.wild.max = pl.wild;   // every surprise player gets to pop in
+  S.rules.order = 'sets';
+  S.surprise = { since: 0, gap: Math.round(S.rules.surprise.min + (rnd || Math.random)() * Math.max(0, S.rules.surprise.max - S.rules.surprise.min)), n: { mystery: 0, wild: 0 } };
+  rebuildQueue();
+  advance();
+}
+function loadRoleSetsFromSetup() {
+  const z = roleSetSizes(), short = z.filter(x => x.size > x.avail), pl = S.rules.plan;
+  if (short.length) return toast(`Not enough ${short[0].name.toLowerCase()} in the list (${short[0].avail}) for a set of ${short[0].size}. Lower the numbers.`, 'warn', 6000);
+  if (S.players.some(p => p.status === 'sold') || S.live.bids.length) {
+    return toast('This auction already has sales. Clear the results first (Backup & reset), then build the sets.', 'warn', 6000);
+  }
+  const total = sum(z.map(x => x.size));
+  confirmBox({
+    title: 'BUILD THE 4 SETS', tone: 'gold', ok: 'BUILD SETS',
+    html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${total} players in 4 sets: ${z.map(x => `${x.name.toLowerCase()} ${x.size}`).join(', ')}? ${pl.mystery} mystery players and ${pl.wild} wild cards are drawn from inside the sets.</p><p class="muted">Players come up set by set, at random inside each set.</p>`,
+    onOk: () => {
+      commit(() => applyRoleSets(), { ck: 'Build 4 sets' });
+      if (UI.page === 'setup') PAGES.setup.build();
+      toast(`${total} players loaded in 4 sets.`, 'good');
+    },
+  });
+}
+
 function iplPlayers(o, rnd = Math.random) {
   const want = Math.max(0, o.mystery) + Math.max(0, o.wild);
   const pool = o.list ? o.list.slice() : IPL.players.slice(0, o.main + want);   // a hand-picked list, or 2026 buys by price, then everyone else by rating
@@ -1688,7 +1765,7 @@ function iplPlayers(o, rnd = Math.random) {
 const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players and wild cards
 
 /* ---------- Sample auction (clearly marked; replace in Setup) ---------- */
-const SAMPLE_V = 2;   // bump to rebuild practice auctions saved by older versions
+const SAMPLE_V = 3;   // bump to rebuild practice auctions saved by older versions
 function buildSample() {
   const s = blankState();
   s.sample = true;
@@ -1699,7 +1776,9 @@ function buildSample() {
   s.started = true;
   S = s;
   const rand = rng(20261002);
-  S.players = iplPlayers({ main: iplSuggest(), mystery: 8, wild: 8 }, rand);
+  applyRoleSets(rand);
+  S.sample = true;
+  S.started = true;
   // a few "last year's college auction" RTM holders, so RTM shows up in the sample
   const tidOf = code => S.teams.find(t => t.short === code).id;
   [['P003', 'RCB'], ['P012', 'MI'], ['P018', 'CSK'], ['P027', 'DC'], ['P033', 'SRH']].forEach(([id, code]) => { const p = S.players.find(x => x.id === id); if (p) p.prevTeam = tidOf(code); });
@@ -2204,6 +2283,8 @@ function autoBuildSets(only) {
   const sets = S.sets.slice();
   for (const p of (only || S.players)) {
     if (p.round2 && !only) continue;
+    const rs = sets.find(x => x.kind === 'rs-' + p.role);   // auctions built in 4 role sets keep using them
+    if (rs) { p.setId = rs.id; continue; }
     const k = autoSetKind(p);
     let s = sets.find(x => x.kind === k);
     if (!s) { s = { id: uid('set'), name: AUTO_SETS.find(a => a[0] === k)[1], kind: k }; sets.push(s); }
@@ -2286,6 +2367,10 @@ function advance(afterResult) {
     let pick = surpriseNext();
     if (pick && !pick.manual && pick.kind === 'wild' && !wildTimingOK()) pick = null;
     if (!pick) pick = pickSurprise();
+    if (pick) return loadSurprise(pick.p, pick.kind);
+  }
+  if (!S.queue.some(id => queueable(P(id))) && S.rules.surprise.on && (surpriseLeft('mystery') || surpriseLeft('wild'))) {
+    const pick = surpriseNext() || pickSurprise();   // the queue ran out first: the surprise players still left come up now
     if (pick) return loadSurprise(pick.p, pick.kind);
   }
   if (S.rules.order === 'manual') { S.live = emptyLive(); return; }   // the auctioneer picks (K) or asks for a random one (N)
@@ -4093,7 +4178,7 @@ function bindChange(el) {
     if (path === 'rules.order') rebuildQueue();
   });
   if (path === 'rules.order') toast(v === 'queue' ? 'Queue rebuilt in set order.' : 'Queue reshuffled.', 'good');
-  if (path.startsWith('rules.currency') || path.startsWith('rules.surprise') || path === 'rules.mystery.auto' || path === 'rules.wild.when' || path === 'rules.wild.specialBase' || path === 'rules.mystery.hide') PAGES.setup.build();
+  if (path.startsWith('rules.plan') || path.startsWith('rules.currency') || path.startsWith('rules.surprise') || path === 'rules.mystery.auto' || path === 'rules.wild.when' || path === 'rules.wild.specialBase' || path === 'rules.mystery.hide') PAGES.setup.build();
 }
 
 const SETUP_TABS = [['event', 'Event & teams'], ['rules', 'Auction rules'], ['players', 'Players'], ['sets', 'Sets & order'], ['special', 'Surprises'], ['data', 'Backup & reset']];
@@ -4152,7 +4237,16 @@ const SETUP = {
   players() {
     const n = S.players.length, by = r => S.players.filter(p => p.role === r).length;
     const suggest = iplSuggest(), cnt = f => IPL.players.filter(f).length, n26 = cnt(x => x.s26);
-    return `<section class="card" style="border-top:6px solid var(--gold)"><h2>🏏 IPL players <small>${IPL.players.length} players: ${n26} from the IPL 2026 auction, ${cnt(x => x.pa)} from the IPL auctions of 2013–2022 and ${cnt(x => x.ip)} more who have played in the IPL since 2013</small></h2>
+    const pl = S.rules.plan, z = roleSetSizes(), perTeam = ROLES.reduce((a, r) => a + (pl[r] || 0), 0), nT = S.teams.length;
+    const sets4 = `<section class="card" style="border-top:6px solid var(--green)"><h2>🗂 Auction in 4 sets <small>Batters, all-rounders, wicketkeepers and bowlers: enough for every team, plus spare players</small></h2>
+        <p>Set how many players of each role every team should be able to buy, and how many spare players each set gets (10 to 15). Each set is filled with the best rated players of that role from the ${IPL.players.length} in the list. The mystery players and wild cards are drawn from inside the sets and pop in by surprise.</p>
+        <div class="form-grid">${ROLE_SETS.map(([r, nm]) => fld(nm.charAt(0) + nm.slice(1).toLowerCase() + ' per team', 'rules.plan.' + r, 'int', { min: 0, max: 15 })).join('')}${fld('Spare players per set', 'rules.plan.extra', 'int', { min: 10, max: 15 })}${fld('🕵️ Mystery players', 'rules.plan.mystery', 'int', { min: 0, max: 20 })}${fld('🃏 Wild cards', 'rules.plan.wild', 'int', { min: 0, max: 20 })}</div>
+        <div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Set</th><th class="r">Per team</th><th class="r">× ${nT} teams</th><th class="r">+ spare</th><th class="r">Players in the set</th><th class="r">In the list</th></tr></thead><tbody>
+          ${z.map((x, i) => `<tr><td class="pname">SET ${i + 1} · ${x.name}</td><td class="r">${pl[x.r] || 0}</td><td class="r">${x.need}</td><td class="r">${x.extra}</td><td class="r"><b>${x.size}</b></td><td class="r ${x.size > x.avail ? 'bad' : 'muted'}">${x.avail}</td></tr>`).join('')}
+          <tr><td class="pname">TOTAL</td><td class="r">${perTeam}</td><td class="r">${perTeam * nT}</td><td class="r">${4 * (pl.extra || 0)}</td><td class="r"><b>${sum(z.map(x => x.size))}</b></td><td></td></tr></tbody></table></div>
+        ${perTeam !== S.rules.maxSquad ? `<p class="notice" style="margin-top:10px">${perTeam} players per team in the sets; the maximum squad is ${S.rules.maxSquad} (Auction rules).</p>` : ''}${ROLES.some(r => (pl[r] || 0) < (S.rules.roleMin[r] || 0)) ? `<p class="notice" style="margin-top:10px">Some roles are below the minimum each team needs (Auction rules → Players per role).</p>` : ''}
+        <div class="row" style="margin-top:12px"><button class="btn green" data-act="sets4-load">🗂 BUILD THE 4 SETS</button><span class="muted">Replaces the current player list. Players then come up set by set, at random inside each set.</span></div></section>`;
+    return sets4 + `<section class="card" style="border-top:6px solid var(--gold)"><h2>🏏 IPL players <small>${IPL.players.length} players: ${n26} from the IPL 2026 auction, ${cnt(x => x.pa)} from the IPL auctions of 2013–2022 and ${cnt(x => x.ip)} more who have played in the IPL since 2013</small></h2>
         <p>The ${n26} players sold at the real IPL 2026 auction come first, with their base price, capped / uncapped, overseas and the team and price they went for. Their ratings follow that price, and the 10 biggest buys form the marquee set. After them come all the other players, best rated first (ratings follow their IPL numbers): legends like AB de Villiers and Chris Gayle, today's stars like Virat Kohli and Jasprit Bumrah. Every player is loaded by default; for a shorter auction, lower <b>Players in the main auction</b> and the best rated stay in. Only players from 2013 to 2026 are in the list: everyone sold at an IPL auction in those years or who played an IPL season since 2013. Players with IPL matches get their role, career stats and special-ability tags from the IPL match data. Players marked <b>❓ Check role</b> have no role in the data, or only a guessed one: check it on the Players page (Edit). Mystery players and wild cards are drawn from the same group. To decide yourself, press <b>✅ CHOOSE PLAYERS</b>: set how many players to keep, fill the list with the best rated or at random (by role, source or overseas if you like), and tick or untick anyone.</p>
         <div class="form-grid"><label class="f"><span>Players in the main auction</span><input id="iplMain" type="number" min="10" max="${IPL.players.length}" value="${suggest}"></label>
           <label class="f"><span>Mystery players</span><input id="iplMys" type="number" min="0" max="30" value="8"></label>
@@ -5164,6 +5258,7 @@ const ACT = {
   'import-go': () => doImport(),
   'ipl-load': () => loadIPLFromSetup(),
   'pick-players': () => openPlayerPicker(),
+  'sets4-load': () => loadRoleSetsFromSetup(),
   'pk-fill': d => pkFill(d.how),
   'pk-all': d => { pkFilter().forEach(i => (d.on === '1' ? PICK.sel.add(i) : PICK.sel.delete(i))); savePick(); drawPlayerPicker(); },
   'pk-clear': () => { PICK.sel.clear(); savePick(); drawPlayerPicker(); },
@@ -5464,7 +5559,7 @@ async function boot() {
   const restored = !!(st && Array.isArray(st.players));
   if (restored) S = migrate(st);
   else S = MODE === 'control' ? buildSample() : blankState();
-  if (restored && S.sample && MODE === 'control' && !(S.players.some(p => p.s26) && S.players.length === IPL.players.length && S.sampleV === SAMPLE_V)) S = buildSample();   // old practice data → new player list
+  if (restored && S.sample && MODE === 'control' && S.sampleV !== SAMPLE_V) S = buildSample();   // old practice data → new player list
   CK = (await idbGet('ck')) || [];
   for (const [k, v] of await idbEntries('m:')) MEDIA.set(k.slice(2), v);
   if (MODE === 'projector') {
