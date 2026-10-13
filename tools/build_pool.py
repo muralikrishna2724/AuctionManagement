@@ -21,7 +21,19 @@ KNOWN = {
  'Tim Seifert': ('WK', 'R', ''), 'Josh Inglis': ('WK', 'R', ''), 'Ben Dwarshuis': ('BOWL', 'L', 'left-arm fast-medium'),
  'Cooper Connolly': ('AR', 'L', 'left-arm orthodox'), 'Adam Milne': ('BOWL', 'R', 'right-arm fast'), 'Jacob Duffy': ('BOWL', 'R', 'right-arm fast-medium'),
  'Jordan Cox': ('WK', 'R', ''), 'Jack Edwards': ('AR', '', 'right-arm medium'), 'Vignesh Puthur': ('BOWL', '', 'left-arm wrist-spin'),
- 'Akshat Raghuwanshi': ('BAT', '', ''), 'Naman Tiwari': ('BOWL', '', 'left-arm fast-medium'), 'Prithviraj Yarra': ('BOWL', '', 'left-arm fast-medium'),
+ 'Akshat Raghuwanshi': ('BAT', 'R', 'right-arm offbreak'), 'Naman Tiwari': ('BOWL', '', 'left-arm fast-medium'), 'Prithviraj Yarra': ('BOWL', '', 'left-arm fast-medium'),
+ # uncapped IPL 2026 buys with no match data yet: batting hand and bowling from their Wisden / team profiles; their auction role
+ # stays as before so the fixed 4-set list doesn't change (Tejasvi Singh, Ravi Singh: keepers; Sarthak Ranjan, Aman Rao Perala:
+ # batters; Daksh Kamra, Mohammad Izhar, Vishal Nishad: bowlers)
+ 'Mangesh Yadav': ('AR', 'R', 'left-arm medium-fast'),
+ 'Tejasvi Singh': ('AR', 'R', ''),
+ 'Ravi Singh': ('AR', 'L', ''),
+ 'Daksh Kamra': ('AR', 'R', 'right-arm offbreak'),
+ 'Sarthak Ranjan': ('AR', 'R', 'right-arm legbreak'),
+ 'Atharva Ankolekar': ('AR', 'L', 'slow left-arm orthodox'),
+ 'Mohammad Izhar': ('AR', 'R', 'left-arm medium-fast'),
+ 'Vishal Nishad': ('AR', 'R', 'right-arm legbreak'),
+ 'Aman Rao Perala': ('AR', 'R', ''),
 }
 lakh = lambda v: round(int(re.sub(r'[^0-9]', '', v)) / 100000)
 recs = []
