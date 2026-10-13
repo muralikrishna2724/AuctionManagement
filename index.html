@@ -115,6 +115,7 @@ kbd{font:700 11px/1 var(--f-body);padding:3px 5px;border-radius:5px;background:r
 .btn.line-purple{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.55);color:var(--purple)}
 .bp-jumps .jump.fixed{cursor:default}
 .bp-jumps .jump.fixed small{font-size:.8em;opacity:.75;margin-left:4px;text-transform:none}
+.mys-secret{margin-top:4px;font:700 12px/1.3 var(--f-cond);letter-spacing:.06em;text-transform:uppercase;color:var(--purple)}
 .tm-fixed{font-weight:700;padding:8px 2px;color:var(--ink)}
 .tm-fixed.code{font-family:var(--f-cond);letter-spacing:.08em;color:var(--gold-2)}
 .pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
@@ -1243,7 +1244,7 @@ function defaultRules() {
     curtain: true,          // keep each new player hidden on the projector until the auctioneer shows them
     unsoldCut: 0,
     currency: { sym: '₹', unit: 'Cr' },
-    mystery: { hide: 'all', reveal: 'before', max: 5, auto: true, every: 6 },
+    mystery: { hide: 'all', reveal: 'after', max: 5, auto: true, every: 6 },   // reveal: always 'after' (on SOLD)
     wild: { max: 4, when: 'any', afterN: 20, specialBase: false, base: cr2l(2), rtm: false },
     surprise: { on: true, min: 4, max: 8, mysteryPct: 50 },
     setOverseas: false,
@@ -1288,6 +1289,7 @@ function migrate(s) {
     else if (dr[k] && typeof dr[k] === 'object' && !Array.isArray(dr[k])) s.rules[k] = Object.assign({}, dr[k], s.rules[k]);
   }
   delete s.rules.timer;
+  s.rules.mystery.reveal = 'after';   // mystery players are only ever revealed when a team buys them
   s.live = Object.assign(emptyLive(), s.live || {});
   delete s.live.timer;
   s.players = (s.players || []).map(p => newPlayer(p));
@@ -1725,7 +1727,7 @@ function simulateSample(rand) {
       const p = lotPlayer();
       if (lotsDone() >= 40 && S.live.how !== 'surprise') break;
       tick(15, 40);
-      if (isHiddenNow(p)) { tick(18, 30); revealMystery(); }
+      if (isHiddenNow(p)) { tick(18, 30); }   // blind bidding: revealed by the sale
       startBidding();
       if (p.rating < 64 && rand() < 0.5) { tick(8, 16); markUnsold(true); tick(20, 40); continue; }
       const target = p.base + Math.round(1.25 * Math.pow(Math.max(0, p.rating - 62), 2) * (0.55 + rand() * 0.9));
@@ -1857,6 +1859,8 @@ function hiddenFields(p) {
   return { name: true, photo: m === 'name_photo' || m === 'all', role: m === 'name_role' || m === 'all', all: m === 'all' };
 }
 const publicName = p => (isHiddenNow(p) ? '🕵️ ' + (p.mcode || 'Mystery player') : p.name);
+/* Control room only: the auctioneer always knows who the mystery player is. Never use this on the projector. */
+const ctlName = p => (isHiddenNow(p) ? `🕵️ ${p.mcode || 'Mystery'} · ${p.name}` : p.name);
 
 /* Prices */
 function lotBase(p) {
@@ -2510,7 +2514,7 @@ function rtmRaiseBid(amt) {
 function mysteryKey(shift) {
   const p = lotPlayer();
   if (p && isHiddenNow(p) && S.live.phase !== 'done') {
-    if (shift || S.live.clues >= (p.clues || []).length) return revealMystery();
+    if (shift || S.live.clues >= (p.clues || []).length) return revealMystery();   // explains that the reveal comes on SOLD
     return showClue();
   }
   toast('Mystery players pop up on their own during the auction.', 'info');
@@ -2519,7 +2523,7 @@ function showClue() {
   const p = lotPlayer();
   if (!p) return;
   const n = S.live.clues, c = (p.clues || [])[n];
-  if (!c) return revealMystery();
+  if (!c) return toast('All the clues are out. The player is revealed when a team buys them.', 'info');
   commit(() => {
     S.live.clues = n + 1;
     S.live.clueAt = NOW() + (S.rules.mystery.every || 6) * 1000;
@@ -2528,9 +2532,11 @@ function showClue() {
   });
   SFX.alert();
 }
-function revealMystery() {
+/* Mystery players are revealed only by a sale (see sell). Asking for an earlier reveal just explains that. */
+function revealMystery(force) {
   const p = lotPlayer();
   if (!p || !isHiddenNow(p)) return;
+  if (!force) return toast(`${p.mcode || 'The mystery player'} stays hidden on the projector until a team buys them. Keep showing clues (M).`, 'info', 4500);
   commit(() => {
     S.live.revealed = true; p.revealed = true; S.live.clueAt = null;
     log({ type: 'reveal', pid: p.id, note: p.name });
@@ -2586,7 +2592,7 @@ function qAdd(pid, where) {
     if (where === 'next') S.queue.unshift(pid); else S.queue.push(pid);
     if (S.live.phase === 'empty') advance();
   });
-  toast(`${publicName(p)} ${where === 'next' ? 'is up next' : 'added to the end of the queue'}.`, 'good');
+  toast(`${ctlName(p)} ${where === 'next' ? 'is up next' : 'added to the end of the queue'}.`, 'good');
 }
 function auctionNow(pid) {
   const p = P(pid);
@@ -2615,7 +2621,7 @@ function skipCurrent() {
     S.lots.push({ lotId: lv.lotId, pid: p.id, result: 'skip', t: NOW(), how: lv.how });
     advance();
   });
-  toast(`${publicName(p)} moved to the end of the queue.`, 'info');
+  toast(`${ctlName(p)} moved to the end of the queue.`, 'info');
 }
 /* What stops the auction from starting; an empty list means ready. */
 function startBlockers() {
@@ -2997,7 +3003,7 @@ function renderPlayerPanel() {
       <p>${nx ? `Pick the next player, or let a random one pop up. ${plural(pickable().length, 'player')} waiting.` : 'The queue is empty. Add players from Next players, or start the unsold round.'}</p>
       <div class="cr-pick"><button class="btn gold lg" data-act="pick-open" ${nx ? '' : 'disabled'}>🔍 PICK A PLAYER <kbd>K</kbd></button><button class="btn ghost lg" data-act="pick-random" ${nx ? '' : 'disabled'}>🎲 RANDOM <kbd>N</kbd></button></div></div>`
       : `<div class="cr-empty"><span class="lbl">On the block</span><h2>No player yet</h2>
-      <p>${nx ? `Up next: <b>${esc(publicName(nx))}</b>.` : 'The queue is empty. Add players from Next players, or start the unsold round.'}</p>
+      <p>${nx ? `Up next: <b>${esc(ctlName(nx))}</b>.` : 'The queue is empty. Add players from Next players, or start the unsold round.'}</p>
       <div class="cr-pick"><button class="btn gold lg" data-act="next" ${nx ? '' : 'disabled'}>LOAD NEXT PLAYER <kbd>N</kbd></button><button class="btn ghost" data-act="pick-open" ${nx ? '' : 'disabled'}>🔍 PICK A PLAYER <kbd>K</kbd></button></div></div>`;
   } else h = playerCardHTML(p);
   h += specialButtonsHTML() + ladderHTML();
@@ -3019,7 +3025,7 @@ function playerBadges(p, hf, hidden) {
   return b.join('');
 }
 function playerCardHTML(p) {
-  const hf = hiddenFields(p), hidden = !!hf.name;
+  const hidden = isHiddenNow(p), hf = {};   // the auctioneer always sees the real player; the projector keeps it hidden
   const kind = p.wild ? 'wild' : p.mystery ? 'mystery' : 'normal';
   const sp = setProgress(p);
   const q = QM;
@@ -3029,9 +3035,9 @@ function playerCardHTML(p) {
     <div class="pc-head">
       ${hf.photo ? '<span class="ph lg mys">?</span>' : photoHTML(p, 'lg')}
       <div class="pc-ident">
-        <div class="pc-id">${hidden ? '🕵️ PLAYER ID: ' + esc(p.mcode || 'M-??') : (p.wild ? '🃏 ' + esc(p.wcode || 'WILD') + ' · ' : '') + 'PLAYER #' + esc(pnum(p))}</div>
-        <h2 class="pc-name">${hidden ? 'MYSTERY PLAYER' : esc(p.name)}</h2>
-        ${hidden && UI.peek ? `<div class="muted">👁 ${esc(p.name)} — only on this screen</div>` : ''}
+        <div class="pc-id">${(hidden ? '🕵️ ' + esc(p.mcode || 'M-??') + ' · ' : p.wild ? '🃏 ' + esc(p.wcode || 'WILD') + ' · ' : '') + 'PLAYER #' + esc(pnum(p))}</div>
+        <h2 class="pc-name">${esc(p.name)}</h2>
+        ${hidden ? '<div class="mys-secret">🔒 Mystery player: hidden on the projector until a team buys them</div>' : ''}
         <div class="pc-badges">${playerBadges(p, hf, hidden)}</div>
       </div>
     </div>
@@ -3044,7 +3050,7 @@ function playerCardHTML(p) {
       <div><dt>Category</dt><dd>${hf.all ? q : esc(p.category || '—')}</dd></div>
     </dl>
     ${!hf.all && p.tags && p.tags.length ? `<div class="pc-tags">${p.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
-    ${hidden ? mysteryBoxHTML(p) : iplStatsHTML(p, false)}
+    ${hidden ? mysteryBoxHTML(p) : ''}${iplStatsHTML(p, false)}
   </article>`;
 }
 const teamShort = n => IPL_ABBR[n] || n;
@@ -3057,17 +3063,14 @@ function iplStatsHTML(p, big) {
 }
 function mysteryBoxHTML(p) {
   const n = S.live.clues, cl = p.clues || [];
-  const after = S.rules.mystery.reveal === 'after';
   const shown = cl.slice(0, n).map((c, i) => `<li class="${i === n - 1 ? 'new' : ''}"><b>🔍 CLUE #${i + 1}</b>“${esc(c)}”</li>`).join('');
   return `<div class="mys-box">
     ${cl.length ? `<ol class="clues">${shown || '<li class="muted" style="font-weight:500">No clues shown yet.</li>'}</ol>` : ''}
     <div class="mys-actions">
       ${n < cl.length ? `<button class="btn line-purple" data-act="clue">🔍 SHOW CLUE #${n + 1} <kbd>M</kbd></button>` : ''}
-      <button class="btn purple" data-act="reveal">${after ? 'REVEAL NOW' : 'REVEAL PLAYER 🔥'} <kbd>⇧M</kbd></button>
-      <button class="btn ghost sm" data-act="peek" title="Show the real name on this screen only">👁 ${UI.peek ? 'Hide' : 'Peek'}</button>
     </div>
     ${S.rules.mystery.auto ? '<p class="muted auto-note" id="autoNote"></p>' : ''}
-    ${after ? '<p class="muted" style="margin:0;font-size:13px">Blind bidding is on: teams bid without knowing who it is. The reveal happens on SOLD.</p>' : ''}
+    <p class="muted" style="margin:0;font-size:13px">Teams bid on the clues alone. The projector reveals the player only when a team buys them; if they go unsold they stay a mystery.</p>
   </div>`;
 }
 function specialButtonsHTML() {
@@ -3328,7 +3331,7 @@ function unsoldHTML() {
       ${S.rules.unsoldCut ? `<span class="muted">Base price drops ${S.rules.unsoldCut}% in this round</span>` : ''}
     </div>
     <div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>ID</th><th>Name</th><th>Role</th><th class="r">Base price</th><th class="r">Highest bid</th><th>Pool</th><th></th></tr></thead><tbody>
-    ${list.map(p => `<tr><td><input type="checkbox" data-ch="unsold-sel" data-pid="${esc(p.id)}" ${sel.has(p.id) ? 'checked' : ''} aria-label="Select ${esc(p.name)}"></td><td class="pid">#${esc(pnum(p))}</td><td class="pname">${esc(publicName(p))}</td><td>${roleText(p)}</td><td class="r money">${money(p.base)}</td><td class="r money">${p.highBid ? money(p.highBid) : '—'}</td><td>${p.pool ? '<span class="st unsold">IN POOL</span>' : '<span class="muted">Marked unsold</span>'}</td><td class="r"><button class="mini" data-act="q-next" data-pid="${esc(p.id)}">Re-auction next</button></td></tr>`).join('')}
+    ${list.map(p => `<tr><td><input type="checkbox" data-ch="unsold-sel" data-pid="${esc(p.id)}" ${sel.has(p.id) ? 'checked' : ''} aria-label="Select ${esc(p.name)}"></td><td class="pid">#${esc(pnum(p))}</td><td class="pname">${esc(ctlName(p))}</td><td>${roleText(p)}</td><td class="r money">${money(p.base)}</td><td class="r money">${p.highBid ? money(p.highBid) : '—'}</td><td>${p.pool ? '<span class="st unsold">IN POOL</span>' : '<span class="muted">Marked unsold</span>'}</td><td class="r"><button class="mini" data-act="q-next" data-pid="${esc(p.id)}">Re-auction next</button></td></tr>`).join('')}
     </tbody></table></div>`;
 }
 function statsHTML() {
@@ -3381,7 +3384,7 @@ function openUnsold() {
   openModal({
     id: 'unsold', tone: 'red', title: '❌ UNSOLD',
     body: `<div class="sale-grid">
-        <div><span>PLAYER</span><b>${esc(publicName(p))}</b></div>
+        <div><span>PLAYER</span><b>${esc(ctlName(p))}</b></div>
         <div><span>BASE PRICE</span><b>${money(lotBase(p))}</b></div>
         <div><span>HIGHEST BID</span><b>${l ? money(l.amt) + ' · ' + esc(T(l.tid).short) : 'No bids'}</b></div>
       </div>
@@ -3400,7 +3403,7 @@ function drawRTM() {
   const lt = T(l.tid);
   let body = '', foot = '', keys = {}, onEnter = null;
   if (r.step === 'pick') {
-    body = `<p>Which team holds the Right to Match for <b>${esc(publicName(p))}</b>?</p><div class="pick-grid">${S.teams.filter(t => t.id !== l.tid).map(t => `<button class="chip" data-act="rtm-pick" data-team="${t.id}" style="--tc:${esc(t.color)}"><span class="c-short">${esc(t.short)}</span><span class="c-purse">RTM left: ${D().ti[t.id].rtmLeft}</span></button>`).join('')}</div>`;
+    body = `<p>Which team holds the Right to Match for <b>${esc(ctlName(p))}</b>?</p><div class="pick-grid">${S.teams.filter(t => t.id !== l.tid).map(t => `<button class="chip" data-act="rtm-pick" data-team="${t.id}" style="--tc:${esc(t.color)}"><span class="c-short">${esc(t.short)}</span><span class="c-purse">RTM left: ${D().ti[t.id].rtmLeft}</span></button>`).join('')}</div>`;
     foot = `<button class="btn ghost" data-act="modal-close">CANCEL <kbd>Esc</kbd></button>`;
   } else if (r.step === 'offer') {
     const ot = T(r.tid), oti = D().ti[r.tid];
@@ -3664,7 +3667,7 @@ function fireDraft() {
 const KEYS = [
   ['SPACE', 'Next bid (+₹0.25 Cr below ₹2 Cr, +₹0.50 Cr from ₹2 Cr). In a bidding war the other team comes back in at the next amount'], ['1 – 9, 0', 'Bid for teams 1 to 10'],
   ['G', 'Going once, going twice, then close the bidding'], ['S', 'SOLD'], ['U', 'UNSOLD'], ['R', 'UNDO the last bid, or the last sale'], ['N', 'Next player (a random one when you pick players yourself)'], ['K', 'Pick the next player yourself'], ['P', 'Previous player'],
-  ['M', 'Mystery player on the block: next clue, then reveal'], ['⇧M', 'Reveal the mystery player now'], ['T', 'Right to Match'],
+  ['M', 'Mystery player on the block: show the next clue (the player is revealed when sold)'], ['T', 'Right to Match'],
   ['X', 'Pass: mark teams that are out'], ['A', 'Breaking news alert'], ['V', 'Projector view on this screen'],
   ['F', 'Full screen'], ['ENTER', 'Start the auction, show the next player on the projector, open the bidding, or confirm'], ['ESC', 'Cancel, close, or hide an alert'], ['?', 'This list'],
 ];
@@ -4196,12 +4199,12 @@ const SETUP = {
           ${fld('Mystery players allowed', 'rules.mystery.max', 'int', { min: 0 })}${fld('Wild cards allowed', 'rules.wild.max', 'int', { min: 0 })}</div>` : ''}
         <p style="margin-top:12px">So far: 🕵️ ${sn.mystery || 0} mystery and 🃏 ${sn.wild || 0} wild card. Waiting in the pool: ${surprisePool('mystery').length} mystery and ${surprisePool('wild').length} wild card players.</p>
         <p class="muted">Players marked Mystery or Wild card on the Players page wait in the surprise pool and never join the normal queue. Only the control room shows when the next one is due and who it is; click that box to change the player or pop one in now.</p></section>
-      <section class="card" style="border-top:6px solid var(--purple)"><h2>🕵️ Mystery players <small>A player whose identity stays hidden until the reveal.</small></h2>
+      <section class="card" style="border-top:6px solid var(--purple)"><h2>🕵️ Mystery players <small>A player whose identity stays hidden on the projector until a team buys them.</small></h2>
         <div class="two-col"><div style="display:flex;flex-direction:column;gap:10px"><span class="lbl">What is hidden</span>
           ${radio('rules.mystery.hide', 'name', 'Name only', 'Photo, role and rating are visible.')}${radio('rules.mystery.hide', 'name_photo', 'Name and photo', 'Role and rating are visible.')}${radio('rules.mystery.hide', 'name_role', 'Name and role', 'Photo and rating are visible.')}${radio('rules.mystery.hide', 'all', 'Everything', 'Only the base price and the clues are shown.')}</div>
           <div style="display:flex;flex-direction:column;gap:10px"><span class="lbl">When to reveal</span>
-          ${radio('rules.mystery.reveal', 'before', 'Reveal, then bid', 'The clues appear, then the reveal, and bidding starts right after it.')}${radio('rules.mystery.reveal', 'after', 'Blind bidding', 'Teams bid without knowing who it is. The reveal plays when the player is sold.')}
-          ${fld('Show the clues and reveal automatically', 'rules.mystery.auto', 'bool')}
+          <p style="margin:0">Teams bid on the clues alone. The projector reveals the player <b>only when a team buys them</b>; an unsold mystery player stays hidden. The control room always shows you who it is.</p>
+          ${fld('Show the clues automatically', 'rules.mystery.auto', 'bool')}
           ${R.mystery.auto ? fld('Seconds between clues', 'rules.mystery.every', 'int', { min: 2, max: 60 }) : ''}</div></div>
         <h3 class="lbl" style="margin:16px 0 8px">Mystery players and clues <span class="muted" style="letter-spacing:.04em">· written from each player's IPL stats; edit them if you like</span></h3>
         ${mys.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Player</th><th>Clues (one per line)</th><th>Status</th></tr></thead><tbody>${mys.map(p => `<tr><td><input type="text" value="${esc(p.mcode)}" data-ch="mys-code" data-pid="${esc(p.id)}" style="width:80px" aria-label="Mystery code"></td><td class="pname">${esc(p.name)}</td><td><textarea rows="2" data-ch="mys-clues" data-pid="${esc(p.id)}" style="width:100%;min-width:240px" aria-label="Clues for ${esc(p.name)}">${esc((p.clues || []).join('\n'))}</textarea></td><td>${statusPill(p)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No mystery players yet. On the Players page, select players and choose “Make mystery”.</p>'}</section>
@@ -4438,7 +4441,7 @@ function drawNextPicker() {
   else if (sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
   const cur = lotPlayer(), lv = S.live, note = $('#npNote');
   if (note) note.innerHTML = cur && lv.phase !== 'done' && lv.phase !== 'empty'
-    ? `On the block now: <b>${esc(publicName(cur))}</b>${lv.bids.length ? '. Bids are open, so sell or mark unsold first.' : '. Picking another player puts them back in the queue.'}`
+    ? `On the block now: <b>${esc(ctlName(cur))}</b>${lv.bids.length ? '. Bids are open, so sell or mark unsold first.' : '. Picking another player puts them back in the queue.'}`
     : `${plural(all.length, 'player')} waiting. Pick one to bring onto the block${S.rules.curtain === false ? '' : ' (they stay hidden on the projector until you press Enter)'}.`;
   const LIM = 200, setName = p => (S.sets.find(x => x.id === p.setId) || {}).name || '';
   patch(el, list.length
