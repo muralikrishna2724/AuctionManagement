@@ -119,6 +119,8 @@ kbd{font:700 11px/1 var(--f-body);padding:3px 5px;border-radius:5px;background:r
 .pc-set-r{display:flex;align-items:center;gap:10px}
 .change-btn{color:var(--gold-2);border-color:var(--gold)}
 .change-btn:disabled{opacity:.4;cursor:not-allowed}
+.tb-eta{color:var(--sand)}
+.tb-eta b{color:var(--gold-2)}
 .tm-fixed{font-weight:700;padding:8px 2px;color:var(--ink)}
 .tm-fixed.code{font-family:var(--f-cond);letter-spacing:.08em;color:var(--gold-2)}
 .pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
@@ -1250,8 +1252,8 @@ function defaultRules() {
     currency: { sym: '₹', unit: 'Cr' },
     mystery: { hide: 'all', reveal: 'after', max: 5, auto: true, every: 6 },   // reveal: always 'after' (on SOLD)
     wild: { max: 4, when: 'any', afterN: 20, specialBase: false, base: cr2l(2), rtm: false },
-    surprise: { on: true, min: 4, max: 8, mysteryPct: 50 },
-    plan: { BAT: 5, AR: 3, WK: 2, BOWL: 5, extra: 12, mystery: 5, wild: 4 },   // the 4 role sets: players per team for each role, + extra per set
+    surprise: { on: true, min: 4, max: 8, mysteryPct: 50, spread: true },   // spread: space surprises evenly through the whole auction
+    plan: { BAT: 5, AR: 3, WK: 2, BOWL: 5, extra: 12, mystery: 5, wild: 4, secs: 60 },   // secs: seconds per player, for the time estimate   // the 4 role sets: players per team for each role, + extra per set
     setOverseas: false,
     sound: true,
   };
@@ -1739,13 +1741,14 @@ function buildRoleSets(pl = S.rules.plan, rnd = Math.random) {
 function applyRoleSets(rnd) {
   const pl = S.rules.plan, res = buildRoleSets(pl, rnd);
   S.players = res.players; S.sets = res.sets;
-  S.queue = []; S.live = emptyLive(); S.lots = []; S.wildUsed = []; S.sample = false; S.started = false;
+  S.queue = []; S.live = emptyLive(); S.lots = []; S.paceFrom = 0; S.wildUsed = []; S.sample = false; S.started = false;
   S.rules.mystery.max = pl.mystery; S.rules.wild.max = pl.wild;   // every surprise player gets to pop in
   // no team may take more than one above the plan of a role, so the sets can't run dry for the last teams
   ROLES.forEach(r => { S.rules.roleMax[r] = Math.max(S.rules.roleMin[r] || 0, (pl[r] || 0) + 1); });
   S.rules.order = 'sets';
-  S.surprise = { since: 0, gap: Math.round(S.rules.surprise.min + (rnd || Math.random)() * Math.max(0, S.rules.surprise.max - S.rules.surprise.min)), n: { mystery: 0, wild: 0 } };
+  S.surprise = { since: 0, gap: 0, n: { mystery: 0, wild: 0 } };
   rebuildQueue();
+  S.surprise.gap = nextSurpriseGap(rnd || Math.random);
   advance();
 }
 function loadRoleSetsFromSetup() {
@@ -1796,7 +1799,7 @@ function iplPlayers(o, rnd = Math.random) {
 const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players and wild cards
 
 /* ---------- Sample auction (clearly marked; replace in Setup) ---------- */
-const SAMPLE_V = 4;   // bump to rebuild practice auctions saved by older versions
+const SAMPLE_V = 5;   // bump to rebuild practice auctions saved by older versions
 function buildSample() {
   const s = blankState();
   s.sample = true;
@@ -1898,6 +1901,7 @@ function simulateSample(rand) {
   S.live.call = 0;
   S.live.clueAt = null;
   S.fx = null;
+  S.paceFrom = S.lots.length;
   // the next sale is followed by a surprise, so the sample shows one straight away
   S.surprise.gap = Math.max(S.rules.surprise.min, 2);
   S.surprise.since = S.surprise.gap - 1;
@@ -2060,11 +2064,13 @@ function checkBid(tid, amt, p, o = {}) {
       if (R.reserve.mode === 'block') hard.push('❌ ' + msg); else soft.push('⚠️ ' + msg);
     }
   }
-  if (!hid) {
+  {   // keep every squad completable: a buy may not use a place the team needs for a role minimum,
+      // unless the player is of a role the team still needs (mystery players too, without saying why)
     let needAfter = 0;
     for (const r of ROLES) needAfter += Math.max(0, (R.roleMin[r] || 0) - ti.roles[r] - (p.role === r ? 1 : 0));
     const roomAfter = R.maxSquad - (ti.count + 1);
-    if (needAfter > roomAfter) hard.push(`❌ NO ROOM LEFT FOR THE ROLE MINIMUMS`);   // keeps every squad completable
+    const helps = (ti.roles[p.role] || 0) < (R.roleMin[p.role] || 0);
+    if (needAfter > roomAfter && !helps) hard.push(hid ? '❌ NOT ELIGIBLE (hidden rule)' : '❌ NO ROOM LEFT FOR THE ROLE MINIMUMS');
   }
   if (amt <= ti.purse && ti.purse - amt < R.lowPurse) soft.push('⚠️ LOW PURSE AFTER THIS BID: ' + money(ti.purse - amt));
   return { hard, soft };
@@ -2147,6 +2153,33 @@ function wildTimingOK() {
   if (r.when === 'between') return nextIsNewSet();
   if (r.when === 'after') return lotsDone() >= r.afterN;
   return true;
+}
+/* ---------- How long the auction will take ----------
+   Pace: the average time between the last results (breaks over 10 minutes left out), or rules.plan.secs
+   per player before there is enough to go on. */
+const fmtDur = min => { min = Math.max(1, Math.round(min)); const h = Math.floor(min / 60), m = min % 60; return h ? `${h} h${m ? ' ' + m + ' min' : ''}` : `${m} min`; };
+function auctionPace() {
+  const from = (S.paceFrom || 0) <= S.lots.length ? S.paceFrom || 0 : 0;   // the practice auction's made-up history doesn't count
+  const t = S.lots.slice(from).filter(l => l.result === 'sold' || l.result === 'unsold').map(l => l.t).slice(-16);
+  const gaps = [];
+  for (let i = 1; i < t.length; i++) { const g = (t[i] - t[i - 1]) / 1000; if (g > 5 && g < 600) gaps.push(g); }
+  return gaps.length >= 3 ? sum(gaps) / gaps.length : ((S.rules.plan && S.rules.plan.secs) || 60);
+}
+function auctionEta() {
+  const left = S.players.filter(p => p.status === 'available').length;
+  if (!left) return null;
+  const secs = auctionPace(), min = left * secs / 60;
+  return { left, secs, min, end: Date.now() + min * 60000 };
+}
+/* Players until the next surprise. Spread (the default): the players still in the queue divided evenly among the
+   surprises still to come, give or take a quarter, so they keep popping in right to the last set. Otherwise a
+   random gap between rules.surprise.min and max. */
+function nextSurpriseGap(rnd = RNG) {
+  const R = S.rules.surprise;
+  const left = surpriseLeft('mystery') + surpriseLeft('wild');
+  const q = S.queue.filter(id => { const p = P(id); return queueable(p) && !p.round2; }).length;
+  if (R.spread !== false && left > 0 && q > 0) return Math.max(1, Math.round((q / (left + 1)) * (0.75 + rnd() * 0.5)));
+  return Math.round(R.min + rnd() * Math.max(0, R.max - R.min));
 }
 function surpriseDue() {
   const R = S.rules.surprise;
@@ -2422,8 +2455,8 @@ function loadSurprise(p, kind) {
   const lv = S.live;
   p.surprised = true;
   S.surprise.since = 0;
-  S.surprise.gap = Math.round(R.min + RNG() * Math.max(0, R.max - R.min));
   S.surprise.n[kind] = (S.surprise.n[kind] || 0) + 1;
+  S.surprise.gap = nextSurpriseGap();
   S.surprise.next = null;
   rollNextSurprise();
   if (kind === 'wild') {
@@ -3063,7 +3096,7 @@ function renderTop() {
     <div class="tb-event"><span class="tb-name">${esc(S.event.name || 'Auction')}</span>${S.sample ? '<button class="pill sample" data-act="sample-info" title="About the sample data">SAMPLE DATA</button>' : ''}</div>
     <div class="tb-set">${sp ? `<b>${esc(sp.label)}</b><span>PLAYER ${sp.idx} / ${sp.total}</span>` : `<span>${S.started ? 'No player on the block' : 'Auction not started'}</span>`}</div>
     ${S.started ? '<span class="tb-status live" title="The auction is running">LIVE</span>' : '<button class="tb-status pre" data-act="start-auction" title="Start the auction (Enter)">▶ START AUCTION</button>'}
-    <div class="tb-count"><span><b>${st.sold}</b> SOLD</span><span><b>${st.unsold}</b> UNSOLD</span><span><b>${st.left}</b> LEFT</span></div>
+    <div class="tb-count"><span><b>${st.sold}</b> SOLD</span><span><b>${st.unsold}</b> UNSOLD</span><span><b>${st.left}</b> LEFT</span>${(() => { const e = auctionEta(); return e ? `<span class="tb-eta" title="At about ${Math.round(e.secs)} s per player${S.lots.length > 3 ? ' (the pace so far)' : ''}, not counting breaks or the unsold round">⏱ <b>${fmtDur(e.min)}</b>${S.started ? ` · ends ~${hhmm(e.end)}` : ''}</span>` : ''; })()}</div>
     <div class="tb-tools">
       <span id="savePill" class="save"></span>
       <button class="tb-btn" data-act="proj-view" title="Projector view on this screen (V)">🖥 <span>Projector</span></button>
@@ -4227,7 +4260,7 @@ function bindChange(el) {
   if (path === 'rules.maxSquad' && v < S.rules.minSquad) return toast('Maximum squad cannot be less than the minimum squad.', 'warn');
   commit(() => {
     setPath(S, path, v);
-    if (path.startsWith('rules.surprise.')) { const R = S.rules.surprise; S.surprise.gap = clamp(S.surprise.gap, Math.min(R.min, R.max), Math.max(R.min, R.max)); }
+    if (path.startsWith('rules.surprise.')) { const R = S.rules.surprise; S.surprise.gap = R.spread !== false ? S.surprise.since + nextSurpriseGap(Math.random) : clamp(S.surprise.gap, Math.min(R.min, R.max), Math.max(R.min, R.max)); }
     if (path === 'rules.order') rebuildQueue();
   });
   if (path === 'rules.order') toast(v === 'queue' ? 'Queue rebuilt in set order.' : 'Queue reshuffled.', 'good');
@@ -4293,11 +4326,12 @@ const SETUP = {
     const pl = S.rules.plan, z = roleSetSizes(), perTeam = ROLES.reduce((a, r) => a + (pl[r] || 0), 0), nT = S.teams.length;
     const sets4 = `<section class="card" style="border-top:6px solid var(--green)"><h2>🗂 Auction in 4 sets <small>Batters, all-rounders, wicketkeepers and bowlers: enough for every team, plus spare players</small></h2>
         <p>Set how many players of each role every team should be able to buy, and how many spare players each set gets (10 to 15). Each set is filled with the best rated players of that role from the ${IPL.players.length} in the list. The mystery players and wild cards are drawn from inside the sets and pop in by surprise.</p>
-        <div class="form-grid">${ROLE_SETS.map(([r, nm]) => fld(nm.charAt(0) + nm.slice(1).toLowerCase() + ' per team', 'rules.plan.' + r, 'int', { min: 0, max: 15 })).join('')}${fld('Spare players per set', 'rules.plan.extra', 'int', { min: 10, max: 15 })}${fld('🕵️ Mystery players', 'rules.plan.mystery', 'int', { min: 0, max: 20 })}${fld('🃏 Wild cards', 'rules.plan.wild', 'int', { min: 0, max: 20 })}</div>
+        <div class="form-grid">${ROLE_SETS.map(([r, nm]) => fld(nm.charAt(0) + nm.slice(1).toLowerCase() + ' per team', 'rules.plan.' + r, 'int', { min: 0, max: 15 })).join('')}${fld('Spare players per set', 'rules.plan.extra', 'int', { min: 10, max: 15 })}${fld('🕵️ Mystery players', 'rules.plan.mystery', 'int', { min: 0, max: 20 })}${fld('🃏 Wild cards', 'rules.plan.wild', 'int', { min: 0, max: 20 })}${fld('Seconds per player', 'rules.plan.secs', 'int', { min: 15, max: 300, hint: 'for the time estimate' })}</div>
         <div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Set</th><th class="r">Per team</th><th class="r">× ${nT} teams</th><th class="r">+ spare</th><th class="r">Players in the set</th><th class="r">🇮🇳 Indian</th><th class="r">🌎 Overseas</th><th class="r">In the list</th></tr></thead><tbody>
           ${z.map((x, i) => `<tr><td class="pname">SET ${i + 1} · ${x.name}</td><td class="r">${pl[x.r] || 0}</td><td class="r">${x.need}</td><td class="r">${x.extra}</td><td class="r"><b>${x.size}</b></td><td class="r">${x.ind}</td><td class="r">${x.os}</td><td class="r ${x.size > x.avail ? 'bad' : 'muted'}">${x.avail}</td></tr>`).join('')}
           <tr><td class="pname">TOTAL</td><td class="r">${perTeam}</td><td class="r">${perTeam * nT}</td><td class="r">${4 * (pl.extra || 0)}</td><td class="r"><b>${sum(z.map(x => x.size))}</b></td><td class="r">${sum(z.map(x => x.ind))}</td><td class="r">${sum(z.map(x => x.os))}</td><td></td></tr></tbody></table></div>
         ${(() => { const c = roleSetCheck(z); return `<p class="notice ${c.ok ? 'good' : 'bad'}" style="margin-top:10px">${c.ok ? '✅' : '⚠️'} ${c.ind} Indian players + ${Math.min(c.os, nT * S.rules.maxOverseas)} of the ${c.os} overseas players can be bought (each team takes at most ${S.rules.maxOverseas} overseas): ${c.usable} for the ${c.need} places in ${nT} full squads of ${S.rules.maxSquad}${c.ok ? `, with ${c.usable - c.need} to spare.` : `. That is ${c.need - c.usable} short: add spare players or lower the numbers.`}</p>`; })()}
+        ${(() => { const tot = sum(z.map(x => x.size)), sp = pl.secs || 60, min = tot * sp / 60; return `<p class="notice info" style="margin-top:10px">⏱ About <b>${fmtDur(min)}</b> for ${tot} players at ${sp} s each, plus breaks and the unsold round. ${min > 150 ? `To shorten it: ${pl.extra > 10 ? `10 spare players per set saves ${fmtDur(4 * (pl.extra - 10) * sp / 60)}; ` : ''}keep each player under a minute (call going once / twice early with <kbd>G</kbd>).` : ''}</p>`; })()}
         ${perTeam !== S.rules.maxSquad ? `<p class="notice" style="margin-top:10px">${perTeam} players per team in the sets; the maximum squad is ${S.rules.maxSquad} (Auction rules).</p>` : ''}${ROLES.some(r => (pl[r] || 0) < (S.rules.roleMin[r] || 0)) ? `<p class="notice" style="margin-top:10px">Some roles are below the minimum each team needs (Auction rules → Players per role).</p>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn green" data-act="sets4-load">🗂 BUILD THE 4 SETS</button><span class="muted">Replaces the current player list. Players then come up set by set, at random inside each set, and each team's limit per role becomes one above the numbers here.</span></div></section>`;
     return sets4 + `<section class="card" style="border-top:6px solid var(--gold)"><h2>🏏 IPL players <small>${IPL.players.length} players: ${n26} from the IPL 2026 auction, ${cnt(x => x.pa)} from the IPL auctions of 2013–2022 and ${cnt(x => x.ip)} more who have played in the IPL since 2013</small></h2>
@@ -4342,7 +4376,7 @@ const SETUP = {
     const sn = S.surprise.n || {};
     return `<section class="card" style="border-top:6px solid var(--gold)"><h2>🎲 Surprises <small>Mystery players and wild cards pop into the auction on their own, at random moments.</small></h2>
         <div class="row" style="margin-bottom:12px">${fld('Pop in surprises automatically', 'rules.surprise.on', 'bool')}</div>
-        ${R.surprise.on ? `<div class="form-grid">${fld('Surprise after at least', 'rules.surprise.min', 'int', { hint: 'players', min: 1 })}${fld('…and at most', 'rules.surprise.max', 'int', { hint: 'players', min: 1 })}
+        ${R.surprise.on ? `<div class="row" style="margin-bottom:12px">${fld('Spread them evenly through the whole auction (the gap follows how many players and surprises are left)', 'rules.surprise.spread', 'bool')}</div><div class="form-grid">${R.surprise.spread === false ? fld('Surprise after at least', 'rules.surprise.min', 'int', { hint: 'players', min: 1 }) + fld('…and at most', 'rules.surprise.max', 'int', { hint: 'players', min: 1 }) : ''}
           ${fld('What pops in', 'rules.surprise.mysteryPct', 'select', { vt: 'int', opts: [[50, 'Mystery or wild card, 50/50'], [75, 'Mostly mystery players'], [25, 'Mostly wild cards'], [100, 'Only mystery players'], [0, 'Only wild cards']] })}
           ${fld('Mystery players allowed', 'rules.mystery.max', 'int', { min: 0 })}${fld('Wild cards allowed', 'rules.wild.max', 'int', { min: 0 })}</div>` : ''}
         <p style="margin-top:12px">So far: 🕵️ ${sn.mystery || 0} mystery and 🃏 ${sn.wild || 0} wild card. Waiting in the pool: ${surprisePool('mystery').length} mystery and ${surprisePool('wild').length} wild card players.</p>
@@ -4387,10 +4421,10 @@ function resetResults() {
         S.players.forEach(p => { Object.assign(p, { status: p.status === 'withdrawn' ? 'withdrawn' : 'available', soldTo: '', soldPrice: null, acq: '', pool: false, round2: false, revealed: false, highBid: null, surprised: false }); if (p.origSet) { p.setId = p.origSet; delete p.origSet; } });
         S.sets = S.sets.filter(s => s.kind !== 'unsold');
         S.teams.forEach(t => { t.adjust = []; });
-        S.live = emptyLive(); S.lots = []; S.wildUsed = []; S.log = []; S.fx = null; S.sample = false; S.started = false;
-        S.surprise = { since: 0, gap: S.rules.surprise.min, n: { mystery: 0, wild: 0 } };
+        S.live = emptyLive(); S.lots = []; S.paceFrom = 0; S.wildUsed = []; S.log = []; S.fx = null; S.sample = false; S.started = false;
+        S.surprise = { since: 0, gap: 0, n: { mystery: 0, wild: 0 } };
         S.judging.scores = {}; S.awards = {};
-        rebuildQueue(); advance();
+        rebuildQueue(); S.surprise.gap = nextSurpriseGap(Math.random); advance();
       });
       CK = []; saveCK();
       closeModal(); nav('control');
@@ -4443,11 +4477,12 @@ function loadIPLList(o, what) {
     onOk: () => {
       commit(() => {
         S.players = iplPlayers(o);
-        S.queue = []; S.live = emptyLive(); S.lots = []; S.wildUsed = []; S.sample = false; S.started = false;
-        S.surprise = { since: 0, gap: Math.round(S.rules.surprise.min + Math.random() * Math.max(0, S.rules.surprise.max - S.rules.surprise.min)), n: { mystery: 0, wild: 0 } };
+        S.queue = []; S.live = emptyLive(); S.lots = []; S.paceFrom = 0; S.wildUsed = []; S.sample = false; S.started = false;
+        S.surprise = { since: 0, gap: 0, n: { mystery: 0, wild: 0 } };
         S.sets = S.sets.filter(s => s.kind === 'custom');
         autoBuildSets();
         rebuildQueue();
+        S.surprise.gap = nextSurpriseGap(Math.random);
         advance();
       }, { ck: 'Load IPL players' });
       if (UI.page === 'setup') PAGES.setup.build();
@@ -4957,7 +4992,7 @@ function doImport() {
   const mode = (document.querySelector('input[name="impMode"]:checked') || {}).value || 'add';
   const list = res.out;
   commit(() => {
-    if (mode === 'replace') { S.players = []; S.queue = []; S.live = emptyLive(); S.lots = []; S.wildUsed = []; S.started = false; S.sets = S.sets.filter(s => s.kind === 'custom'); S.sample = false; }
+    if (mode === 'replace') { S.players = []; S.queue = []; S.live = emptyLive(); S.lots = []; S.paceFrom = 0; S.wildUsed = []; S.started = false; S.sets = S.sets.filter(s => s.kind === 'custom'); S.sample = false; }
     const added = [];
     for (const np of list) {
       const setName = np._set, prev = np._prev;
