@@ -2031,7 +2031,7 @@ function loadRoleSetsFromSetup() {
     title: 'BUILD THE 4 SETS', tone: 'gold', ok: 'BUILD SETS',
     html: `<p>Replace the ${plural(S.players.length, 'player')} in this auction with ${total} players in 4 sets (${z.map(x => `${x.name.toLowerCase()} ${x.size}`).join(', ')}), including ${pl.mystery} mystery players that pop in by surprise?</p><p class="muted">Players come up at random from the whole list, or the auctioneer picks each one (✋ I pick above the queue in the control room). ${pl.exact !== false ? `Every team buys exactly ${ROLES.reduce((a, r) => a + (pl[r] || 0), 0)} players: ${ROLE_SETS.map(([r, nm]) => `${pl[r] || 0} ${nm.toLowerCase()}`).join(', ')}.` : `Each team's role limit becomes one above these numbers (${ROLE_SETS.map(([r, nm]) => `${(pl[r] || 0) + 1} ${nm.toLowerCase()}`).join(', ')}), so no team can take so many of one role that others run short.`}</p>`,
     onOk: () => {
-      commit(() => applyRoleSets(), { ck: 'Build 4 sets' });
+      commit(() => { applyRoleSets(); S.fixed = true; S.fixedV = FIXED_V; }, { ck: 'Build 4 sets' });
       if (UI.page === 'setup') PAGES.setup.build();
       toast(`${total} players loaded in 4 sets.`, 'good');
     },
@@ -6241,9 +6241,16 @@ async function boot() {
   if (restored) S = migrate(st);
   else S = MODE === 'control' ? buildFixed() : blankState();
   if (restored && S.sample && MODE === 'control' && S.sampleV !== SAMPLE_V) S = buildFixed();   // the old practice auction → the fixed auction list
-  if (restored && S.fixed && MODE === 'control' && (S.fixedV || 1) < FIXED_V && !S.started && !S.players.some(p => p.status === 'sold')) {
-    const ev = S.event, keep = S.teams.map(t => ({ owner: t.owner, logo: t.logo }));   // an unstarted fixed list → the new one, keeping the owners and the event
-    S = buildFixed(); S.event = ev; S.teams.forEach((t, i) => Object.assign(t, keep[i] || {}));
+  // The fixed 159-player list is the auction until the players are changed by hand. An unstarted copy of it (however it was
+  // made: the default, BUILD THE 4 SETS, an older version with wild cards) is brought up to date, keeping the owners and the event.
+  if (restored && MODE === 'control' && !S.sample && !S.started && !S.players.some(p => p.status === 'sold') && (S.fixed !== true || (S.fixedV || 1) < FIXED_V)) {
+    const names = l => l.map(p => p.name).sort().join('|');
+    let same = false;
+    try { same = names(S.players) === names(buildRoleSets().players); } catch (e) {}
+    if (same) {
+      const ev = S.event, keep = S.teams.map(t => ({ owner: t.owner, logo: t.logo }));
+      S = buildFixed(); S.event = ev; S.teams.forEach((t, i) => Object.assign(t, keep[i] || {}));
+    }
   }
   CK = (await idbGet('ck')) || [];
   if (MODE === 'control') setTimeout(cacheLibs, 6000);
