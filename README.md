@@ -43,7 +43,8 @@ All steps:
 - **Surprises**: every few players, at random, a mystery player or a wild card pops into the auction on its own. Mystery players get clues written from their own IPL stats; the clues and the reveal can run by themselves. Set how often surprises happen, and how many of each, in **Setup → Surprises**.
 - **Handler control over surprises**: the 🎲 box in the control room shows only the auctioneer who pops in next. Click it to pick a different mystery or wild card player, turn any available player into one, take a fresh random pick, or **pop one in now**. While a surprise player is on the block and nobody has bid yet, the same box swaps them for someone else, and the first player goes back to the surprise pool.
 - **Budget safety**: blocks bids over a team's purse or past its squad, overseas or role limits, and warns about low purses and unmet role minimums.
-- **Right to Match**, with an optional final raise. Teams named after an IPL franchise (for example CSK or Mumbai Indians) get the RTM for that franchise's last players.
+- **The 10 IPL franchises as teams**: Chennai Super Kings, Delhi Capitals, Gujarat Titans, Kolkata Knight Riders, Lucknow Super Giants, Mumbai Indians, Punjab Kings, Rajasthan Royals, Royal Challengers Bengaluru and Sunrisers Hyderabad. Their names and codes (CSK, DC, GT, KKR, LSG, MI, PBKS, RR, RCB, SRH) are fixed; in **Setup → Event & teams** you fill in each team's owner / manager, and can change its colour or upload a logo you have permission to use. Auctions saved by older versions take the franchise names in order and keep their owners, purses and players.
+- **Right to Match**, with an optional final raise. Each franchise gets the RTM for its last IPL players.
 - **Event logo**: upload your college or event logo in **Setup → Event & teams** and it shows on the projector (top bar and the “starts soon” screen). Use a logo you have permission to use.
 - **Projector view**: press `V`, or open the page in a second window with `#projector` at the end of the address.
 - **Corrections**: change a team or price, re-auction, send to the unsold pool, adjust purses, restore an earlier state. Nothing is deleted from the history.
@@ -56,7 +57,6 @@ All steps:
 | --- | --- |
 | `Space` | Next bid (the other team in a bidding war comes back in) |
 | `1`–`9`, `0` | Bid for teams 1–10 |
-| `Shift+1`–`5` | Bid for teams 11–15 |
 | `G` | Going once → going twice → close the bidding |
 | `S` / `U` | Sold / unsold |
 | `R` | Undo |

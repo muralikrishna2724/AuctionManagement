@@ -113,6 +113,8 @@ kbd{font:700 11px/1 var(--f-body);padding:3px 5px;border-radius:5px;background:r
 .btn.ghost:hover{background:var(--navy-3)}
 .btn.line-red{background:transparent;border-color:rgba(229,72,77,.6);color:var(--red)}
 .btn.line-purple{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.55);color:var(--purple)}
+.tm-fixed{font-weight:700;padding:8px 2px;color:var(--ink)}
+.tm-fixed.code{font-family:var(--f-cond);letter-spacing:.08em;color:var(--gold-2)}
 .pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
 .pk-bar input[type=search]{flex:1;min-width:220px}
 .pk-n input{width:110px}
@@ -177,6 +179,7 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .logo.sm{width:34px;height:34px}
 .logo.md{width:52px;height:52px;font-size:18px;border-radius:12px}
 .logo.lg{width:72px;height:72px;font-size:24px;border-radius:14px}
+.logo.c4{font-size:11px;letter-spacing:0}.logo.md.c4{font-size:14px}.logo.lg.c4{font-size:19px}
 
 /* ---------- Control room ---------- */
 .cr{display:grid;height:100%;min-height:620px;grid-template-columns:minmax(250px,.95fr) minmax(420px,1.45fr) minmax(270px,1fr);grid-template-rows:minmax(0,1fr) minmax(190px,31%);gap:10px;padding:10px 16px 12px;position:relative}
@@ -701,6 +704,7 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 .pj-amt.bump{animation:bump .4s ease}
 .pj-team{display:flex;align-items:center;gap:.5em;font:800 2.2em/1 var(--f-cond);letter-spacing:.05em;text-transform:uppercase;min-width:0}
 .pj-team .logo{width:2.6em;height:2.6em;font-size:.45em;border-radius:.5em}
+.pj-team .logo.c4,.pj-last .team .logo.c4{font-size:.36em}
 .pj-team span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pj-team.none{color:var(--muted);font-size:1.6em}
 .pj-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.6em 1em;align-items:center}
@@ -1196,6 +1200,27 @@ const ROLE_INFO = {
   WK: { n: 'Wicketkeeper', pl: 'Wicketkeepers', ic: '🧤', c: '#DBD1C6' },
 };
 const TAG_LIBRARY = ['🔥 Power Hitter', '🎯 Death Bowler', '🔄 Versatile', '⚡ Pace Ace', '🌀 Spin Wizard', '🧱 Anchor', '🚀 Finisher', '🧤 Safe Hands', '🏃 Gun Fielder', '👑 Captain Material', '🏅 Match Winner', '🌱 Rising Star'];
+/* The teams are the 10 IPL franchises: names and codes are fixed, owners (and colours, logos) are the organiser's. */
+const FRANCHISES = [
+  ['Chennai Super Kings', 'CSK', '#F9CD05'], ['Delhi Capitals', 'DC', '#5B7CFA'], ['Gujarat Titans', 'GT', '#8FA0C4'],
+  ['Kolkata Knight Riders', 'KKR', '#9B59D0'], ['Lucknow Super Giants', 'LSG', '#1FC8E3'], ['Mumbai Indians', 'MI', '#2E86DE'],
+  ['Punjab Kings', 'PBKS', '#F05454'], ['Rajasthan Royals', 'RR', '#EA4C9C'], ['Royal Challengers Bengaluru', 'RCB', '#C62828'],
+  ['Sunrisers Hyderabad', 'SRH', '#FF822E'],
+];
+/* Make a team list match the franchises: teams keep their id, owner, purse and players and take the franchise
+   name and code in order; missing franchises are added; extra teams go unless they already have players. */
+function fixFranchises(s) {
+  const teams = s.teams || [];
+  FRANCHISES.forEach(([name, short, color], i) => {
+    if (!teams[i]) teams[i] = newTeam(i);
+    const t = teams[i];
+    if (t.name !== name) t.color = color;
+    t.name = name; t.short = short;
+  });
+  const busy = t => (s.players || []).some(p => p.soldTo === t.id) || ((s.live || {}).bids || []).some(b => b.tid === t.id);
+  s.teams = teams.filter((t, i) => i < FRANCHISES.length || busy(t));
+  return s;
+}
 const TEAM_COLORS = ['#FF7EB6', '#FD4B4B', '#9DDD90', '#2EC4B6', '#7BD3F7', '#C7F464', '#DBD1C6', '#4F91CD', '#F2A541', '#E879F9', '#4ADE80', '#FCA5A5', '#93C5FD', '#FDE047', '#5EEAD4'];
 const AUTO_SETS = [
   ['marquee', 'MARQUEE PLAYERS'], ['bat', 'BATTERS'], ['fast', 'FAST BOWLERS'], ['spin', 'SPINNERS'],
@@ -1240,7 +1265,8 @@ function blankState() {
 }
 function newTeam(i) {
   const n = i + 1;
-  return { id: uid('t'), name: 'Team ' + pad2(n), short: 'T' + pad2(n), color: TEAM_COLORS[i % TEAM_COLORS.length], owner: '', logo: '', adjust: [] };
+  const f = FRANCHISES[i];
+  return { id: uid('t'), name: f ? f[0] : 'Team ' + pad2(n), short: f ? f[1] : 'T' + pad2(n), color: f ? f[2] : TEAM_COLORS[i % TEAM_COLORS.length], owner: '', logo: '', adjust: [] };
 }
 function newPlayer(o = {}) {
   return Object.assign({
@@ -1264,6 +1290,7 @@ function migrate(s) {
   delete s.live.timer;
   s.players = (s.players || []).map(p => newPlayer(p));
   s.teams.forEach(t => { if (!t.adjust) t.adjust = []; });
+  fixFranchises(s);
   if (!s.judging || !Array.isArray(s.judging.judges)) s.judging = b.judging;
   s.judging.judges = s.judging.judges.map((j, i) => (typeof j === 'string' ? { id: 'j' + (i + 1), name: j } : j));
   if (!s.judging.scores) s.judging.scores = {};
@@ -1657,23 +1684,21 @@ function iplPlayers(o, rnd = Math.random) {
 const iplSuggest = () => IPL.players.length - 16;   // the whole pool, less the 16 drawn as mystery players and wild cards
 
 /* ---------- Sample auction (clearly marked; replace in Setup) ---------- */
+const SAMPLE_V = 2;   // bump to rebuild practice auctions saved by older versions
 function buildSample() {
   const s = blankState();
   s.sample = true;
   s.event = { name: 'College IPL Auction 2026', host: 'Sports Council', date: '' };
-  const T8 = [
-    ['Hostel Hurricanes', 'HH', 'Ananya & Kabir'], ['Canteen Chargers', 'CC', 'Riya M.'], ['Library Lions', 'LL', 'Devansh P.'],
-    ['Backbench Blasters', 'BB', 'Sana K.'], ['Night Owls', 'NO', 'Ishita R.'], ['Lab Rats XI', 'LR', 'Neha & Om'],
-    ['Fresher Falcons', 'FF', 'Aditya V.'], ['Proxy Kings', 'PK', 'Meera S.'],
-  ];
-  s.teams = T8.map((t, i) => Object.assign(newTeam(i), { name: t[0], short: t[1], owner: t[2] }));
+  const OWNERS = ['Ananya & Kabir', 'Aditya V.', 'Zoya F.', 'Sana K.', 'Arjun T.', 'Riya M.', 'Meera S.', 'Neha & Om', 'Devansh P.', 'Ishita R.'];
+  s.teams = FRANCHISES.map((f, i) => Object.assign(newTeam(i), { owner: OWNERS[i] }));
+  s.sampleV = SAMPLE_V;
   s.started = true;
   S = s;
   const rand = rng(20261002);
   S.players = iplPlayers({ main: iplSuggest(), mystery: 8, wild: 8 }, rand);
   // a few "last year's college auction" RTM holders, so RTM shows up in the sample
   const tidOf = code => S.teams.find(t => t.short === code).id;
-  [['P003', 'LL'], ['P012', 'CC'], ['P018', 'HH'], ['P027', 'FF'], ['P033', 'NO']].forEach(([id, code]) => { const p = S.players.find(x => x.id === id); if (p) p.prevTeam = tidOf(code); });
+  [['P003', 'RCB'], ['P012', 'MI'], ['P018', 'CSK'], ['P027', 'DC'], ['P033', 'SRH']].forEach(([id, code]) => { const p = S.players.find(x => x.id === id); if (p) p.prevTeam = tidOf(code); });
   autoBuildSets();
   RNG = rand;
   rebuildQueue();
@@ -1690,7 +1715,7 @@ function simulateSample(rand) {
   const tick = (a, b) => { CLOCK += Math.round((a + rand() * (b - a)) * 1000); };
   const ids = () => S.teams.map(t => t.id);
   const tidOf = code => S.teams.find(t => t.short === code).id;
-  const greedy = { CC: 1.5, PK: 1.25, HH: 1.1 };
+  const greedy = { MI: 1.5, PBKS: 1.25, CSK: 1.1 };
   try {
     let guard = 0;
     if (!S.live.pid && S.queue.length) loadLotNow(S.queue[0]);
@@ -1733,15 +1758,15 @@ function simulateSample(rand) {
     if (cur) {
       tick(15, 25);
       startBidding();
-      cur.prevTeam = tidOf('BB');
-      const war = [tidOf('PK'), tidOf('BB')];
+      cur.prevTeam = tidOf('KKR');
+      const war = [tidOf('PBKS'), tidOf('KKR')];
       const target = cur.base + Math.round(1.1 * Math.pow(Math.max(0, cur.rating - 60), 2));
-      placeBid(tidOf('NO'), nextAmount()); tick(5, 9);
+      placeBid(tidOf('SRH'), nextAmount()); tick(5, 9);
       let k = 0;
       while (nextAmount() <= target && k < 40) { placeBid(war[k % 2], nextAmount()); k++; tick(4, 9); }
       const lt = lead();
-      if (lt && lt.tid !== tidOf('PK')) placeBid(tidOf('PK'), nextAmount());
-      commit(() => { S.live.passed = [tidOf('LL'), tidOf('NO')]; });
+      if (lt && lt.tid !== tidOf('PBKS')) placeBid(tidOf('PBKS'), nextAmount());
+      commit(() => { S.live.passed = [tidOf('RCB'), tidOf('SRH')]; });
     }
   } finally {
     // shift the simulated clock so the last bid happened half a minute ago
@@ -2866,7 +2891,8 @@ function teamBadge(tid, o = {}) {
 }
 function logoHTML(t, size = 'sm') {
   const src = mediaURL(t.logo);
-  return `<span class="logo ${size}" style="--tc:${esc(t.color)};--on:${onColor(t.color)}">${src ? `<img src="${esc(src)}" alt="">` : esc(String(t.short || '').slice(0, 3))}</span>`;
+  const code = String(t.short || '').slice(0, 4);
+  return `<span class="logo ${size}${code.length > 3 ? ' c4' : ''}" style="--tc:${esc(t.color)};--on:${onColor(t.color)}">${src ? `<img src="${esc(src)}" alt="">` : esc(code)}</span>`;
 }
 function photoHTML(p, size = 'md') {
   const src = photoSrc(p), k = photoKey(p);
@@ -3699,8 +3725,8 @@ function openProjectorMenu() {
 function openSampleInfo() {
   openModal({
     id: 'sample', tone: 'gold', title: 'SAMPLE AUCTION',
-    body: `<p>This is a practice auction: 8 made-up college teams bidding for the real players sold at the IPL 2026 auction and the best IPL players of 2013–2026. It is 40 players in, with a live bidding war on the current player.</p>
-      <p>Try it. Tap a team to bid and press <kbd>S</kbd> to sell (Backbench Blasters hold an RTM card for this player). A mystery player or wild card pops in on its own right after this sale.</p>
+    body: `<p>This is a practice auction: the 10 IPL franchises, run by made-up college owners, bidding for the real players sold at the IPL 2026 auction and the best IPL players of 2013–2026. It is 40 players in, with a live bidding war on the current player.</p>
+      <p>Try it. Tap a team to bid and press <kbd>S</kbd> to sell (Kolkata Knight Riders hold an RTM card for this player). A mystery player or wild card pops in on its own right after this sale.</p>
       <p>When you are ready, set up your own event in Setup. “Start fresh” removes all sample teams and players.</p>`,
     foot: `<button class="btn ghost" data-act="modal-close">KEEP EXPLORING</button><button class="btn ghost" data-act="reset-results">KEEP TEAMS & PLAYERS, CLEAR RESULTS</button><button class="btn gold" data-act="fresh-start">START FRESH</button>`,
   });
@@ -4115,7 +4141,6 @@ PAGES.setup = {
     </div>`;
   },
   update() {
-    const c = $('#teamCount'); if (c) c.textContent = S.teams.length;
     const sv = $('#saveNote'); if (sv) sv.textContent = saveInfo.at ? 'Last saved ' + hhmmss(saveInfo.at) : 'Saved';
   },
 };
@@ -4128,15 +4153,14 @@ const SETUP = {
         <label class="btn ghost sm" style="position:relative">${S.event.logo ? 'CHANGE LOGO' : 'UPLOAD EVENT LOGO'}<input type="file" accept="image/*" data-ch="event-logo" style="position:absolute;inset:0;opacity:0;cursor:pointer" aria-label="Upload the event logo"></label>
         ${S.event.logo ? '<button class="btn ghost sm" data-act="event-nologo">REMOVE</button>' : ''}
         <p class="muted" style="margin:0;flex-basis:100%;font-size:13px">Shown on the projector (top bar and the “starts soon” screen). Use a logo you have permission to use, such as your college or event logo. PNG with a transparent background looks best.</p></div></section>
-      <section class="card"><h2>Teams <small>2 to 15 teams. Short codes appear on the bid buttons and the projector.</small></h2>
-        <div class="row" style="margin-bottom:12px"><span class="lbl">Number of teams</span><span class="stepper"><button data-act="teams-n" data-d="-1" aria-label="One team fewer">−</button><b id="teamCount">${S.teams.length}</b><button data-act="teams-n" data-d="1" aria-label="One team more">+</button></span></div>
+      <section class="card"><h2>Teams <small>The 10 IPL franchises. Names and codes are fixed; fill in each team's owner / manager.</small></h2>
         <div class="team-edit" style="border:0;padding-bottom:0"><span></span><span class="lbl">Logo</span><span class="lbl">Colour</span><span class="lbl">Team name</span><span class="lbl">Code</span><span class="lbl">Owner / manager</span><span></span></div>
         ${S.teams.map((t, i) => `<div class="team-edit">
           <span class="ix">${pad2(i + 1)}</span>
           <label class="logo-up" title="Upload a logo">${logoHTML(t, 'md')}<input type="file" accept="image/*" data-ch="team-logo" data-team="${t.id}" aria-label="Logo for ${esc(t.name)}"></label>
           <input type="color" value="${esc(t.color)}" data-ch="team-color" data-team="${t.id}" aria-label="Colour for ${esc(t.name)}">
-          <input type="text" value="${esc(t.name)}" data-ch="team-f" data-f="name" data-team="${t.id}" aria-label="Team name" placeholder="Team name">
-          <input type="text" value="${esc(t.short)}" maxlength="4" data-ch="team-f" data-f="short" data-team="${t.id}" aria-label="Short code" placeholder="CODE">
+          <span class="tm-fixed" title="Franchise names are fixed">${esc(t.name)}</span>
+          <span class="tm-fixed code">${esc(t.short)}</span>
           <input type="text" value="${esc(t.owner || '')}" data-ch="team-f" data-f="owner" data-team="${t.id}" aria-label="Owner or manager" placeholder="Owner / manager">
           <span>${t.logo ? `<button class="mini" data-act="team-nologo" data-team="${t.id}">Remove logo</button>` : ''}</span>
         </div>`).join('')}
@@ -4242,22 +4266,6 @@ const SETUP = {
 };
 
 /* ---------- Setup actions ---------- */
-function setTeamCount(n) {
-  n = clamp(n, 2, 15);
-  if (n === S.teams.length) return;
-  if (n < S.teams.length) {
-    const drop = S.teams.slice(n);
-    const busy = drop.find(t => S.players.some(p => p.soldTo === t.id) || S.live.bids.some(b => b.tid === t.id));
-    if (busy) return toast(`${busy.name} has players or bids. Clear them before removing the team.`, 'warn');
-    commit(() => {
-      const ids = drop.map(t => t.id);
-      S.teams = S.teams.slice(0, n);
-      S.players.forEach(p => { if (ids.includes(p.prevTeam)) p.prevTeam = ''; });
-      S.live.passed = S.live.passed.filter(x => !ids.includes(x));
-    });
-  } else commit(() => { while (S.teams.length < n) S.teams.push(newTeam(S.teams.length)); });
-  PAGES.setup.build();
-}
 function resetResults() {
   confirmBox({
     title: 'CLEAR RESULTS', tone: 'red', typed: 'CLEAR', ok: 'CLEAR RESULTS', okClass: 'red',
@@ -4281,15 +4289,15 @@ function resetResults() {
 function freshStart() {
   confirmBox({
     title: 'START FRESH', tone: 'red', typed: 'FRESH', ok: 'START FRESH', okClass: 'red',
-    html: '<p>Everything in this browser is replaced by an empty auction with 8 placeholder teams and no players.</p><p class="muted">Export a backup first if you need the current data.</p>',
+    html: '<p>Everything in this browser is replaced by an empty auction with the 10 IPL franchises (no owners yet) and no players.</p><p class="muted">Export a backup first if you need the current data.</p>',
     onOk: async () => {
       const s = blankState();
-      s.teams = Array.from({ length: 8 }, (_, i) => newTeam(i));
+      s.teams = FRANCHISES.map((f, i) => newTeam(i));
       commit(() => { Object.keys(S).forEach(k => delete S[k]); Object.assign(S, s); });
       CK = []; saveCK();
       for (const k of Array.from(MEDIA.keys())) { MEDIA.delete(k); idbDel('m:' + k); }
       UI.setupTab = 'event'; nav('setup');
-      toast('Fresh start. Add your teams, rules and players.', 'good');
+      toast('Fresh start. Add the team owners, rules and players.', 'good');
     },
   });
 }
@@ -5207,7 +5215,6 @@ const ACT = {
   'csv-template': () => csvTemplate(),
   'photos-save': () => savePhotosOffline(),
   'setup-tab': d => { UI.setupTab = d.tab; saveUI(); PAGES.setup.build(); },
-  'teams-n': d => setTeamCount(S.teams.length + (+d.d)),
   'event-nologo': () => { commit(() => { S.event.logo = ''; }); PAGES.setup.build(); },
   'team-nologo': d => { commit(() => { T(d.team).logo = ''; }); PAGES.setup.build(); },
   'set-auto': () => confirmBox({
@@ -5277,13 +5284,10 @@ const CH = {
   'unsold-sel': el => { const id = el.dataset.pid; UI.unsoldSel = el.checked ? Array.from(new Set(UI.unsoldSel.concat(id))) : UI.unsoldSel.filter(x => x !== id); renderNow(); },
   'unsold-all': el => { UI.unsoldSel = el.checked ? S.players.filter(p => p.status === 'unsold').map(p => p.id) : []; renderNow(); },
   'teams-squad': el => { UI.teamsSquad = el.checked; renderNow(); },
-  'team-f': el => {
-    const t = T(el.dataset.team); if (!t) return;
-    let v = el.value.trim();
-    if (el.dataset.f === 'short') v = v.toUpperCase().slice(0, 4);
-    if (!v && el.dataset.f !== 'owner') { el.value = t[el.dataset.f]; return toast('This cannot be empty.', 'warn'); }
-    commit(() => { t[el.dataset.f] = v; });
-    if (el.dataset.f !== 'owner') PAGES.setup.build();
+  'team-f': el => {   // only the owner / manager is editable: franchise names and codes are fixed
+    const t = T(el.dataset.team); if (!t || el.dataset.f !== 'owner') return;
+    const v = el.value.trim();
+    commit(() => { t.owner = v; });
   },
   'team-color': el => { const t = T(el.dataset.team); if (!t) return; commit(() => { t.color = el.value; }); PAGES.setup.build(); },
   'event-logo': async el => {
@@ -5502,7 +5506,7 @@ async function boot() {
   const restored = !!(st && Array.isArray(st.players));
   if (restored) S = migrate(st);
   else S = MODE === 'control' ? buildSample() : blankState();
-  if (restored && S.sample && MODE === 'control' && !(S.players.some(p => p.s26) && S.players.length === IPL.players.length)) S = buildSample();   // old practice data → new player list
+  if (restored && S.sample && MODE === 'control' && !(S.players.some(p => p.s26) && S.players.length === IPL.players.length && S.sampleV === SAMPLE_V)) S = buildSample();   // old practice data → new player list
   CK = (await idbGet('ck')) || [];
   for (const [k, v] of await idbEntries('m:')) MEDIA.set(k.slice(2), v);
   if (MODE === 'projector') {
