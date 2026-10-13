@@ -36,7 +36,7 @@ recs.sort(key=lambda x: -x['win'])
 out, unsure, matched = [], [], 0
 for i, x in enumerate(recs):
     p = x['old']
-    e = {'n': x['name'], 'sn': x['name'], 'cid': p['cid'] if p else 0, 'rt': rate(x['win']), 'bp': x['base'], 'os': 1 if x['os'] else 0,
+    e = {'n': x['name'], 'sn': x['name'], 'cid': p['cid'] if p else 0, 'rt': rate(x['win']), 'bp': max(25, round(x['base'] / 25) * 25), 'os': 1 if x['os'] else 0,
          'cat': 'Marquee' if i < 10 else ('Capped' if x['cap'] == 'Capped' else 'Uncapped'),
          'img': p['img'] if p else '', 'dob': p.get('dob', '') if p else '', 's26': {'t': x['team'], 'p': x['win']}}
     if p:

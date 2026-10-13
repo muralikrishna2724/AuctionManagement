@@ -191,7 +191,7 @@ old_for = {}
 for o in OLD:   # earlier IPL-DATASET entries, keyed by their name in the match data
     k = o['sn'] if o['sn'] in st else auto(o['n'])
     if k and k not in old_for: old_for[k] = o
-bp = lambda r: 200 if r >= 86 else 150 if r >= 80 else 100 if r >= 74 else 75 if r >= 68 else 50 if r >= 62 else 30 if r >= 56 else 20
+bp = lambda r: 200 if r >= 86 else 150 if r >= 80 else 100 if r >= 74 else 75 if r >= 68 else 50 if r >= 62 else 25   # base prices in ₹0.25 Cr steps
 new = []
 for k, s in st.items():
     if k in used or k in SKIP: continue

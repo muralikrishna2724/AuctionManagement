@@ -413,7 +413,7 @@ m = pat.search(html)
 I = json.loads(m.group(1))
 cur = [p for p in I['players'] if p.get('s26')]          # IPL 2026 players stay, earlier additions are rebuilt
 have = {nk(p['n']) for p in cur}
-bp = lambda r: 200 if r >= 86 else 150 if r >= 80 else 100 if r >= 74 else 75 if r >= 68 else 50 if r >= 62 else 30 if r >= 56 else 20
+bp = lambda r: 200 if r >= 86 else 150 if r >= 80 else 100 if r >= 74 else 75 if r >= 68 else 50 if r >= 62 else 25   # base prices in ₹0.25 Cr steps
 out, seen, skipped, matched, guessed, missing = [], set(), [], 0, [], []
 for raw in names:
     name = SAME.get(raw, raw)
