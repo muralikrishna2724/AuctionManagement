@@ -1475,9 +1475,10 @@ function defaultRules() {
 function emptyLive() {
   return { lotId: null, pid: null, phase: 'empty', bids: [], passed: [], clues: 0, revealed: true, jump: null, call: 0, startedAt: null, how: null, result: null };
 }
+const RULES_V = 2;   // 2: the exact 7-player squad (1 WK, 2 BAT, 2 BOWL, 2 AR) is the default
 function blankState() {
   return {
-    v: 1, rev: 0, updated: 0, sample: false, started: false,
+    v: 1, rev: 0, updated: 0, sample: false, started: false, rulesV: RULES_V,
     event: { name: 'College IPL Auction 2026', host: '', date: '', logo: '' },
     rules: defaultRules(),
     teams: [], players: [], sets: [], queue: [], live: emptyLive(), lots: [], wildUsed: [],
@@ -1502,6 +1503,7 @@ function newPlayer(o = {}) {
 }
 function migrate(s) {
   if (s.started === undefined) s.started = !!((s.lots && s.lots.length) || (s.live && s.live.pid));
+  const oldRulesV = s.rulesV || 1;
   const b = blankState();
   for (const k of Object.keys(b)) if (s[k] === undefined) s[k] = b[k];
   const dr = defaultRules();
@@ -1544,6 +1546,14 @@ function migrate(s) {
     if (s.surprise && s.surprise.next && s.surprise.next.kind === 'wild') s.surprise.next.kind = 'mystery';
   }
   s.rules.wild.max = 0; s.rules.surprise.mysteryPct = 100;
+  // once per saved auction, before it starts: the exact 7-player squad becomes the default (later changes are kept)
+  if (oldRulesV < 2 && !s.started && !(s.players || []).some(p => p.status === 'sold')) {
+    Object.assign(s.rules, { minSquad: 7, maxSquad: 7 });
+    s.rules.roleMin = { BAT: 2, BOWL: 2, AR: 2, WK: 1 }; s.rules.roleMax = { BAT: 2, BOWL: 2, AR: 2, WK: 1 };
+    Object.assign(s.rules.plan, { BAT: 2, AR: 2, WK: 1, BOWL: 2, total: 150, mystery: 9, wild: 0, exact: true });
+    s.rules.reserve.perSlot = cr2l(0.25);
+  }
+  s.rulesV = RULES_V;
   s.awards && delete s.awards.wild;
   s.teams.forEach(t => { if (!t.adjust) t.adjust = []; });
   fixFranchises(s);
@@ -4729,6 +4739,7 @@ const SETUP = {
         ${fld('Maximum overseas', 'rules.maxOverseas', 'int', { min: 0 })}
       </div></section>
       <section class="card"><h2>Players per role <small>Minimums trigger warnings; maximums block bids.</small></h2>
+        ${(() => { const mn = R.roleMin, mx = R.roleMax, exact = R.minSquad === R.maxSquad && ROLES.every(r => (mn[r] || 0) === (mx[r] ?? -1)); return exact ? `<p class="notice info" style="margin:0 0 12px">Every team must buy exactly <b>${R.maxSquad} players</b>: 🧤 ${mn.WK} wicketkeeper${mn.WK === 1 ? '' : 's'} · 🏏 ${mn.BAT} batter${mn.BAT === 1 ? '' : 's'} · 🎯 ${mn.BOWL} bowler${mn.BOWL === 1 ? '' : 's'} · 🔄 ${mn.AR} all-rounder${mn.AR === 1 ? '' : 's'}.</p>` : ''; })()}
         <div class="role-grid"><span></span><b>MIN</b><b>MAX</b>${ROLES.map(r => `<span>${ROLE_INFO[r].ic} ${ROLE_INFO[r].pl}</span><input type="number" min="0" step="1" data-bind="rules.roleMin.${r}" data-t="int" value="${R.roleMin[r] ?? 0}" aria-label="Minimum ${ROLE_INFO[r].pl}"><input type="number" min="0" step="1" data-bind="rules.roleMax.${r}" data-t="int" value="${R.roleMax[r] ?? ''}" aria-label="Maximum ${ROLE_INFO[r].pl}">`).join('')}</div></section>
       <section class="card"><h2>Bid increment</h2><p>The opening bid is the player's base price. Then each team button, <kbd>SPACE</kbd> or number key adds <b>${money(STEP_LOW)}</b> while the bid is below ${money(STEP_FROM)}, and <b>${money(STEP_HIGH)}</b> once it reaches ${money(STEP_FROM)} (… ₹1.75 Cr → ₹2 Cr → ₹2.5 Cr → ₹3 Cr …).</p></section>
       <section class="card"><h2>Budget safety</h2><div class="form-grid">
@@ -6247,6 +6258,8 @@ async function boot() {
     const names = l => l.map(p => p.name).sort().join('|');
     let same = false;
     try { same = names(S.players) === names(buildRoleSets().players); } catch (e) {}
+    const pool = new Set(IPL.players.map(x => x.n));   // an old default: the whole player database loaded
+    if (!same && S.players.length >= IPL.players.length - 20 && S.players.every(p => pool.has(p.name))) same = true;
     if (same) {
       const ev = S.event, keep = S.teams.map(t => ({ owner: t.owner, logo: t.logo }));
       S = buildFixed(); S.event = ev; S.teams.forEach((t, i) => Object.assign(t, keep[i] || {}));
