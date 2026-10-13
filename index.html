@@ -1259,7 +1259,9 @@ function migrate(s) {
   return s;
 }
 
-/* ---------- IndexedDB (primary store) + localStorage (instant mirror) ---------- */
+/* ---------- Storage: IndexedDB holds everything (auction, undo history, photos, photo lookups). It gets
+   hundreds of MB or more, where localStorage stops at about 5 MB. localStorage is only used when IndexedDB
+   is not available (some private windows), plus a few small display preferences. ---------- */
 let idb = null;
 function idbOpen() {
   return new Promise(res => {
@@ -1287,22 +1289,47 @@ function idbReq(mode, fn) {
 const idbGet = k => idbReq('readonly', st => st.get(k)).catch(() => undefined);
 const idbSet = (k, v) => idbReq('readwrite', st => { st.put(v, k); });
 const idbDel = k => idbReq('readwrite', st => { st.delete(k); }).catch(() => {});
-async function idbEntries() {
+async function idbEntries(prefix) {
   try {
-    const keys = await idbReq('readonly', st => st.getAllKeys());
-    const vals = await idbReq('readonly', st => st.getAll());
+    const range = IDBKeyRange.bound(prefix, prefix + '\uffff');
+    const keys = await idbReq('readonly', st => st.getAllKeys(range));
+    const vals = await idbReq('readonly', st => st.getAll(range));
     return (keys || []).map((k, i) => [k, vals[i]]);
   } catch (e) { return []; }
+}
+const lsSave = () => { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); return true; } catch (e) { return false; } };
+const lsDrop = k => { try { localStorage.removeItem(k); } catch (e) {} };
+/* How much space the browser gives this page, and whether it promised to keep it (navigator.storage). */
+const STORE = { used: null, quota: null, kept: null };
+async function refreshStore(askKeep) {
+  const ns = navigator.storage;
+  if (!ns) return;
+  try {
+    if (askKeep && ns.persist) STORE.kept = (await ns.persisted()) || (await ns.persist());
+    else if (ns.persisted) STORE.kept = await ns.persisted();
+    if (ns.estimate) { const e = await ns.estimate(); STORE.used = e.usage; STORE.quota = e.quota; }
+  } catch (e) { /* not allowed here */ }
+  const el = $('#storeNote'); if (el) el.innerHTML = storeText();
+}
+const mb = n => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : Math.max(0.1, n / 1e6).toFixed(1) + ' MB');
+function storeText() {
+  if (!idb) return '⚠️ This browser is not letting the page use IndexedDB (a private window?), so the auction is kept in the small localStorage area. Export backups often.';
+  const parts = ['💾 Saved in IndexedDB'];
+  if (STORE.used != null) parts.push(`${mb(STORE.used)} used` + (STORE.quota ? ` of about ${mb(STORE.quota)} available` : ''));
+  if (STORE.kept === true) parts.push('kept permanently');
+  else if (STORE.kept === false) parts.push('the browser may clear it if the disk runs low, so export backups');
+  return parts.join(' · ');
 }
 
 const saveInfo = { at: null, err: false, idbOK: false };
 function persist() {
   if (SIM || MODE !== 'control' || !CONTROLLER) return;
-  let lsOK = false;
-  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); lsOK = true; } catch (e) { /* quota or blocked */ }
-  if (lsOK) { saveInfo.at = Date.now(); saveInfo.err = false; }
-  idbSet('state', S).then(() => { saveInfo.at = Date.now(); saveInfo.err = false; saveInfo.idbOK = true; paintSave(); })
-    .catch(() => { if (!lsOK) { saveInfo.err = true; paintSave(); } });
+  if (idb) {
+    idbSet('state', S).then(() => { saveInfo.at = Date.now(); saveInfo.err = false; saveInfo.idbOK = true; paintSave(); })
+      .catch(() => { const ok = lsSave(); saveInfo.err = !ok; if (ok) saveInfo.at = Date.now(); paintSave(); });   // IndexedDB full or blocked
+  } else {
+    const ok = lsSave(); saveInfo.err = !ok; if (ok) saveInfo.at = Date.now();
+  }
   paintSave();
   bcPost({ type: 'state', state: S });
 }
@@ -1341,7 +1368,14 @@ function mediaURL(ref) {
 const PHOTO = (() => { let c = {}; try { c = JSON.parse(localStorage.getItem('photo-cache') || '{}') || {}; } catch (e) {} return { bad: c.bad || {}, alt: c.alt || {} }; })();
 /* A failed link is skipped for a day, then tried again (it may have been a network blip). */
 const isBadPhoto = u => !!PHOTO.bad[u] && Date.now() - PHOTO.bad[u] < 864e5;
-function savePhotoCache() { try { localStorage.setItem('photo-cache', JSON.stringify(PHOTO)); } catch (e) {} }
+let photoTimer = null;
+function savePhotoCache() {
+  clearTimeout(photoTimer);
+  photoTimer = setTimeout(() => {
+    if (idb) idbSet('photo-cache', { bad: PHOTO.bad, alt: PHOTO.alt }).catch(() => {});
+    else try { localStorage.setItem('photo-cache', JSON.stringify(PHOTO)); } catch (e) {}
+  }, 500);
+}
 const photoKey = p => normKey(p.name);
 const PHOTO_NAMES = new Map();   // photo key -> player name, for looking photos up
 function photoSrc(p) {
@@ -4178,7 +4212,8 @@ const SETUP = {
   },
   data() {
     return `<section class="card" style="border-top:6px solid var(--green)"><h2>Auto-save <small id="saveNote">${saveInfo.at ? 'Last saved ' + hhmmss(saveInfo.at) : 'Saved'}</small></h2>
-        <p>Every bid, sale and correction is saved the moment it happens, in this browser on this laptop. If the browser crashes or the page refreshes, the auction opens exactly where it was.</p>
+        <p>Every bid, sale and correction is saved the moment it happens, in this browser on this laptop (in its IndexedDB database, which has room for the whole auction, the undo history and saved photos). If the browser crashes or the page refreshes, the auction opens exactly where it was.</p>
+        <p class="muted" id="storeNote">${storeText()}</p>${(queueMicrotask(() => refreshStore(false)), '')}
         <p>Browser storage belongs to this browser only. Export a backup before the event, at the break, and at the end, so you can carry on from any laptop.</p>
         <div class="row"><button class="btn gold" data-act="backup-export">EXPORT BACKUP</button><label class="btn ghost" style="position:relative">RESTORE BACKUP<input type="file" accept=".json,application/json" data-ch="backup-file" style="position:absolute;inset:0;opacity:0;cursor:pointer" aria-label="Choose a backup file"></label></div></section>
       <section class="card" style="border-top:6px solid var(--red)"><h2>Reset</h2>
@@ -5272,12 +5307,20 @@ async function boot() {
   let b = null;
   try { b = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) {}
   const st = a && b ? ((b.updated || 0) > (a.updated || 0) ? b : a) : (a || b);
+  if (idb && MODE === 'control') {
+    // move what older versions kept in localStorage into IndexedDB, then free that space
+    if (b) (st === b ? idbSet('state', b) : Promise.resolve()).then(() => lsDrop(LS_KEY)).catch(() => {});
+    const pc = await idbGet('photo-cache');
+    if (pc) { Object.assign(PHOTO.bad, pc.bad || {}); Object.assign(PHOTO.alt, pc.alt || {}); }
+    try { if (localStorage.getItem('photo-cache') != null) idbSet('photo-cache', { bad: PHOTO.bad, alt: PHOTO.alt }).then(() => lsDrop('photo-cache')).catch(() => {}); } catch (e) {}
+    refreshStore(true);
+  }
   const restored = !!(st && Array.isArray(st.players));
   if (restored) S = migrate(st);
   else S = MODE === 'control' ? buildSample() : blankState();
   if (restored && S.sample && MODE === 'control' && !(S.players.some(p => p.s26) && S.players.length >= IPL.players.length)) S = buildSample();   // old practice data → new player list
   CK = (await idbGet('ck')) || [];
-  for (const [k, v] of await idbEntries()) if (typeof k === 'string' && k.startsWith('m:')) MEDIA.set(k.slice(2), v);
+  for (const [k, v] of await idbEntries('m:')) MEDIA.set(k.slice(2), v);
   if (MODE === 'projector') {
     const pr = $('#proj'); pr.hidden = false;
     renderProj();

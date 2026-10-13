@@ -69,7 +69,7 @@ All steps:
 
 ## Saving
 
-Every action saves instantly in the browser the auction runs in, and the auction comes back after a refresh or a crash. That storage belongs to one browser on one laptop, so use **Export backup** (in Setup → Backup & reset, or Reports) before the event and at breaks. **Restore backup** loads it on any machine.
+Every action saves instantly in the browser the auction runs in, and the auction comes back after a refresh or a crash. Everything (the auction, the undo history, saved photos and photo lookups) is kept in the browser's IndexedDB database, which has room for hundreds of MB, not the 5 MB of localStorage; data from older versions is moved over automatically, and the app asks the browser to keep it permanently. **Setup → Backup & reset** shows how much space it uses. If a browser blocks IndexedDB (some private windows), the app falls back to localStorage and says so. That storage belongs to one browser on one laptop, so use **Export backup** (in Setup → Backup & reset, or Reports) before the event and at breaks. **Restore backup** loads it on any machine.
 
 ## Player photos
 
