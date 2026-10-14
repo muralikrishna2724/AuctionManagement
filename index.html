@@ -877,6 +877,40 @@ label.f input,label.f select,label.f textarea{font:500 15px var(--f-body);letter
 @keyframes pjSpot{0%,100%{transform:translate(-14%,-8%)}50%{transform:translate(14%,8%)}}
 @keyframes pjPhotoIn{from{opacity:0;transform:scale(.55) rotate(-14deg)}60%{opacity:1;transform:scale(1.06) rotate(2deg)}to{opacity:1;transform:none}}
 @keyframes pjUp{from{opacity:0;transform:translateY(.9em)}to{opacity:1;transform:none}}
+/* "The auction starts soon" (before the start) */
+.pj-soon{position:relative;grid-template-rows:minmax(0,1fr) auto;row-gap:.5em;isolation:isolate}
+.soon-fx{position:absolute;inset:-1em -1.6em;z-index:-1;overflow:hidden;pointer-events:none}
+.soon-fx .beam{position:absolute;bottom:-14%;width:40vw;height:160%;transform-origin:50% 100%;background:linear-gradient(to top,rgba(255,226,150,.32),rgba(255,226,150,.09) 45%,transparent 80%);clip-path:polygon(47% 100%,53% 100%,100% 0,0 0);mix-blend-mode:screen;opacity:.8}
+.soon-fx .b1{left:-8vw;animation:soonBeam 7s ease-in-out infinite alternate}
+.soon-fx .b2{right:-8vw;animation:soonBeam 8.5s ease-in-out -3s infinite alternate-reverse}
+@keyframes soonBeam{from{transform:rotate(-30deg)}to{transform:rotate(30deg)}}
+.soon-sparks span{position:absolute;bottom:-3%;left:var(--x);width:var(--s);height:var(--s);border-radius:50%;background:radial-gradient(circle,#fffbe8,#ffd24a 50%,rgba(255,180,40,0) 70%);box-shadow:0 0 .6em .15em rgba(255,190,60,.55);opacity:0;animation:soonSpark var(--t) var(--d) ease-out infinite}
+@keyframes soonSpark{0%{opacity:0;transform:translate(0,0) scale(.6)}15%{opacity:.95}100%{opacity:0;transform:translate(var(--dx),-85vh) scale(1.1)}}
+.soon-ev{animation:soonTrack 1.4s cubic-bezier(.2,.8,.2,1) both,soonGlow 3s 1.4s ease-in-out infinite}
+@keyframes soonTrack{from{opacity:0;letter-spacing:1.1em;filter:blur(6px)}to{opacity:1;letter-spacing:.2em;filter:none}}
+@keyframes soonGlow{50%{text-shadow:0 0 .6em rgba(191,215,240,.9)}}
+.pj-soon .soon-t{margin:.15em 0 .4em;font-size:4.6em}
+.soon-t .ln{display:block}
+.soon-t .w{display:inline-block;white-space:nowrap}
+.soon-t i{font-style:normal;display:inline-block;animation:pjLetter .7s calc(.5s + var(--i) * .06s) cubic-bezier(.2,1.6,.4,1) both,soonWave 4s calc(2.4s + var(--i) * .07s) ease-in-out infinite}
+@keyframes soonWave{0%,22%,100%{color:#fff;text-shadow:none;transform:none}8%{color:#ffd76a;text-shadow:0 0 .35em rgba(255,200,60,.9),0 0 .9em rgba(201,146,14,.6);transform:translateY(-.06em) scale(1.08)}}
+.soon-facts{display:flex;flex-wrap:wrap;gap:.5em}
+.soon-facts span{font:800 1.05em/1 var(--f-cond);letter-spacing:.1em;text-transform:uppercase;padding:.5em .85em;border-radius:99px;background:rgba(20,47,120,.8);border:1px solid rgba(201,146,14,.55);box-shadow:0 0 .8em rgba(201,146,14,.2);animation:soonPop .55s calc(2.2s + var(--i) * .15s) cubic-bezier(.2,1.6,.4,1) both,soonBob 3.4s calc(3.4s + var(--i) * .4s) ease-in-out infinite}
+@keyframes soonPop{from{opacity:0;transform:scale(.4) translateY(.6em)}}
+@keyframes soonBob{50%{transform:translateY(-.2em)}}
+.soon-cap{font:800 1em/1 var(--f-cond);letter-spacing:.3em;color:var(--gold);margin-bottom:.7em;animation:pjUp .6s 1s both}
+.soon-teams{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.7em}
+.soon-teams .soon-team{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:.4em;padding:.8em .3em .6em;border-radius:.8em;background:linear-gradient(160deg,rgba(255,255,255,.1),rgba(20,47,120,.78));border:1px solid color-mix(in srgb,var(--tc) 70%,transparent);box-shadow:0 0 1em color-mix(in srgb,var(--tc) 40%,transparent);animation:soonFlip .7s calc(1.2s + var(--i) * .12s) cubic-bezier(.2,1.4,.4,1) both}
+.soon-teams .soon-team b{font:800 .78em/1.1 var(--f-cond);letter-spacing:.06em;text-transform:uppercase;text-align:center;color:var(--sand);min-height:2.2em;display:grid;place-items:center}
+.soon-teams .soon-team .logo.lg{width:3.3em;height:3.3em;font-size:1em;border-radius:.6em;box-shadow:0 .3em 1em rgba(0,0,0,.35)}
+.soon-teams .soon-team::after{content:"";position:absolute;top:-50%;bottom:-50%;left:-60%;width:40%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);transform:skewX(-20deg);animation:soonShine 6s calc(3s + var(--i) * .25s) ease-in-out infinite}
+@keyframes soonFlip{from{opacity:0;transform:perspective(40em) rotateY(95deg) scale(.7)}}
+@keyframes soonShine{0%{left:-60%}18%,100%{left:130%}}
+.soon-tick{grid-column:1/-1;overflow:hidden;border-block:1px solid rgba(201,146,14,.5);background:linear-gradient(90deg,rgba(201,146,14,.18),rgba(14,35,99,.65) 30%,rgba(14,35,99,.65) 70%,rgba(201,146,14,.18));padding:.45em 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);animation:pjUp .6s 2.8s both}
+.soon-tick .trk{display:flex;width:max-content;animation:soonTick 34s linear infinite}
+.soon-tick .trk > div{display:flex;align-items:center;gap:1.4em;padding-right:1.4em;font:800 1.1em/1 var(--f-cond);letter-spacing:.16em;white-space:nowrap}
+.soon-tick b{color:var(--gold)}
+@keyframes soonTick{to{transform:translateX(-50%)}}
 @keyframes pjLeft{from{opacity:0;transform:translateX(-1.6em)}to{opacity:1;transform:none}}
 @keyframes pjRight{from{opacity:0;transform:translateX(1.6em)}to{opacity:1;transform:none}}
 @keyframes pjPop{from{opacity:0;transform:scale(.7)}70%{opacity:1;transform:scale(1.08)}to{opacity:1;transform:none}}
@@ -1044,7 +1078,8 @@ body.mode-proj .app{display:none}
   *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
   .fx-late{opacity:1}
   .cd{display:none}
-  .fx-bg,.fx-ring,.fx-fw,.fx-card,#pjMain.spot::after,.pj-flash{display:none}
+  .fx-bg,.fx-ring,.fx-fw,.fx-card,#pjMain.spot::after,.pj-flash,.soon-fx{display:none}
+  .pj-soon,.pj-soon *,.pj-soon *::after{animation:none!important}
 }
 
 /* ---------- Print (offline file) ---------- */
@@ -5325,7 +5360,29 @@ function projCurtain() {
         <div class="who">${photoHTML(lp, 'md')}<div class="nm">${esc(publicName(lp))}</div></div><div class="to">NO TEAM BID FOR THIS PLAYER</div></div>`;
   return `<div class="pj-curtain">${card}${next}</div>`;
 }
+/* Before the auction starts: the "starts soon" screen with its own show (stadium spotlights, rising sparks, the title
+   dropping in letter by letter with a gold wave running through it, the facts, the teams and a ticker). It is built the
+   same way on every render, so the animations never restart. */
+function projSoon() {
+  const R = S.rules, evLogo = mediaURL(S.event.logo || '');
+  const n = S.players.filter(p => p.status !== 'withdrawn').length, mys = S.players.filter(p => p.mystery && p.status !== 'withdrawn').length;
+  const facts = [['🏏', plural(S.teams.length, 'team')], ['💰', money(R.purse) + ' purse each'], ['👥', plural(n, 'player')],
+    mys ? ['🕵️', plural(mys, 'mystery player')] : null, ['🧢', R.minSquad === R.maxSquad ? `exactly ${R.maxSquad} per squad` : `${R.minSquad} to ${R.maxSquad} per squad`]].filter(Boolean);
+  const sparks = Array.from({ length: 24 }, (_, i) => `<span style="--x:${(i * 37 + 11) % 100}%;--s:${(0.25 + ((i * 7) % 5) * 0.12).toFixed(2)}em;--t:${4 + ((i * 3) % 4)}s;--d:${((i * 13) % 40) / 10}s;--dx:${((i * 17) % 21) - 10}vw"></span>`).join('');
+  let k = 0;
+  const title = ['THE AUCTION', 'STARTS SOON'].map(line => `<span class="ln">${line.split(' ').map(w => `<span class="w">${[...w].map(c => `<i style="--i:${k++}">${esc(c)}</i>`).join('')}</span>`).join(' ')}</span>`).join('');
+  const tick = facts.map(f => f[0] + ' ' + f[1].toUpperCase()).concat('🔨 GET YOUR PADDLES READY', '⭐ ' + (S.event.name || 'THE AUCTION').toUpperCase()).map(t => `<span>${esc(t)}</span>`).join('<b>✦</b>');
+  return `<div class="pj-idle pj-soon">
+    <div class="soon-fx" aria-hidden="true"><i class="beam b1"></i><i class="beam b2"></i><div class="soon-sparks">${sparks}</div></div>
+    <div class="soon-l">${evLogo ? `<img class="pj-logo-big" src="${esc(evLogo)}" alt="">` : ''}<div class="pj-lbl soon-ev">${esc(S.event.name || 'WELCOME')}</div>
+      <h1 class="soon-t" aria-label="The auction starts soon">${title}</h1>
+      <div class="soon-facts">${facts.map((f, i) => `<span style="--i:${i}">${f[0]} ${esc(f[1])}</span>`).join('')}</div></div>
+    <div class="soon-r">${S.teams.length ? `<div class="soon-cap">THE ${S.teams.length} CONTENDERS</div><div class="soon-teams">${S.teams.map((t, i) => `<div class="soon-team" style="--tc:${esc(t.color)};--i:${i}">${logoHTML(t, 'lg')}<b>${esc(t.name)}</b></div>`).join('')}</div>` : ''}</div>
+    <div class="soon-tick" aria-hidden="true"><div class="trk"><div>${tick}<b>✦</b></div><div>${tick}<b>✦</b></div></div></div>
+  </div>`;
+}
 function projIdle() {
+  if (!S.started) return projSoon();
   const st = D().st;
   const left = S.queue.map(id => P(id)).filter(queueable);
   const q = S.started && S.rules.order === 'queue' ? left.slice(0, 4) : [];
