@@ -138,6 +138,8 @@ kbd{font:700 11px/1 var(--f-body);padding:3px 5px;border-radius:5px;background:r
 .mini{border:1px solid var(--line-2);background:transparent;border-radius:7px;padding:4px 8px;font:700 12px/1 var(--f-cond);letter-spacing:.08em;text-transform:uppercase;color:var(--sand);white-space:nowrap}
 .mini:hover{background:var(--navy-3)}
 .mini.on{background:var(--sand);color:var(--navy);border-color:var(--sand)}
+.mini:disabled{opacity:.55;cursor:not-allowed}
+.bat-wait{color:var(--orange)}
 .icon-btn{border:0;background:transparent;border-radius:6px;padding:3px 6px;color:var(--muted);font-size:14px;line-height:1}
 .icon-btn:hover{background:var(--navy-4);color:var(--ink)}
 input[type=text],input[type=number],input[type=search],input:not([type]),select,textarea{background:var(--navy);border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;min-width:0;color:var(--ink)}
@@ -1461,6 +1463,7 @@ function defaultRules() {
     lowPurse: cr2l(10),
     autoAdvance: true,
     order: 'random',
+    maxBatRun: 2,           // no more than 2 batters come up one after another (0 = no limit)
     curtain: true,          // keep each new player hidden on the projector until the auctioneer shows them
     unsoldCut: 0,
     currency: { sym: '₹', unit: 'Cr' },
@@ -1834,6 +1837,7 @@ function commit(fn, o = {}) {
   if (!canWrite()) return;
   if (o.ck) pushCK(o.ck);
   const out = fn();
+  spaceQueue();   // the queue on screen always keeps the batters-in-a-row rule
   S.rev = (S.rev || 0) + 1;
   S.updated = NOW();
   if (!SIM) { persist(); render(); }
@@ -2523,11 +2527,12 @@ function surpriseDue() {
   if (!R || !R.on || S.surprise.since < surpriseGapNow()) return false;
   return S.queue.some(id => { const p = P(id); return queueable(p) && !p.round2; });
 }
-function pickSurprise() {
+/* run: the batters that just came up in a row (see batRunNow), when the surprise pops in now rather than later */
+function pickSurprise(run) {
   const wantMystery = RNG() * 100 < S.rules.surprise.mysteryPct;
   let mys = surpriseLeft('mystery') ? surprisePool('mystery') : [];
   let wild = surpriseLeft('wild') && wildTimingOK() ? surprisePool('wild') : [];
-  const tis = S.teams.map(computeTeam), buyable = p => tis.some(ti => couldBuy(ti, p));   // never a surprise nobody can buy
+  const tis = S.teams.map(computeTeam), buyable = p => tis.some(ti => couldBuy(ti, p)) && (!run || batOK(p, run));   // never a surprise nobody can buy (or one batter too many in a row)
   mys = mys.filter(buyable); wild = wild.filter(buyable);
   if (!bySets() && mys.length + wild.length > 1) {   // random order: the role with the fewest open places per waiting surprise goes first
     const R = S.rules, open = r => sum(tis.map(ti => { const mx = R.roleMax[r]; return Math.max(0, Math.min(R.maxSquad - ti.count, (mx == null || mx === '' ? R.maxSquad : mx) - (ti.roles[r] || 0))); }));
@@ -2769,6 +2774,8 @@ function loadLot(pid, how) {
   S.started = true;
   const l = [...S.lots].reverse().find(x => x.how !== 'surprise');
   const prevSet = l ? (S.players.find(x => x.id === l.pid) || {}).setId : null;
+  if (S.qPin === pid) S.qPin = null;
+  if (!SIM && how !== 'back' && !batOK(p, batRunNow(true))) setTimeout(() => toast(`🏏 ${ordinal(batRunNow().n)} batter in a row: no bowler, all-rounder or wicketkeeper is left that a team can still buy.`, 'info', 6000), 0);
   S.queue = S.queue.filter(x => x !== pid);
   if (p.status === 'unsold') { p.status = 'available'; p.pool = false; }
   S.live = Object.assign(emptyLive(), { lotId: uid('lot'), pid, phase: 'ready', revealed: !(p.mystery && !p.revealed), how: how || 'queue',
@@ -2796,7 +2803,7 @@ function couldBuy(ti, p) {
 function skipDead() {
   const tis = S.teams.map(computeTeam), dead = [];
   for (const p of S.players) {
-    if (p.status !== 'available' || p.id === S.live.pid || p.surprised) continue;
+    if (p.status !== 'available' || p.id === S.live.pid) continue;   // a mystery player back in the unsold round too
     if (tis.some(ti => couldBuy(ti, p))) continue;
     Object.assign(p, { status: 'unsold', pool: false, noBuyer: true });
     dead.push(p);
@@ -2807,20 +2814,104 @@ function skipDead() {
   log({ type: 'skip', note: `${plural(dead.length, 'player')} no team can buy any more (${by.map(([r, n]) => n + ' ' + (n === 1 ? ROLE_INFO[r].n : ROLE_INFO[r].pl).toLowerCase()).join(', ')}): passed over` });
   if (!SIM) setTimeout(() => toast(`⏭ Passed over ${plural(dead.length, 'player')} that no team can buy any more (${by.map(([r, n]) => n + ' ' + (n === 1 ? ROLE_INFO[r].n : ROLE_INFO[r].pl).toLowerCase()).join(', ')}).`, 'info', 5000), 0);
 }
+/* ---------- No more than 2 batters in a row ----------
+   rules.maxBatRun (2; 0 = no limit): no more than that many different batters come up one after another. What has
+   come up = the players sold or unsold, in order, plus the one on the block; a skipped or swapped-out player doesn't
+   count either way, and a sold player re-auctioned straight away (a correction) doesn't count twice. Used when players
+   come up at random or the auctioneer picks (set by set, a batters set is all batters). Only when no team can buy
+   anyone but a batter any more do batters come one after another. */
+const isBat = p => !!p && p.role === 'BAT';
+const batLimit = () => ((S.rules.order === 'random' || S.rules.order === 'manual') && S.rules.maxBatRun > 0 ? S.rules.maxBatRun : 0);
+/* How many batters just came up in a row (n), the last one (last) and whether they were sold (sold: so they come
+   again only as a re-auction). skipLive: leave out the player on the block (they are being swapped for another one). */
+function batRunNow(skipLive) {
+  const lv = S.live, seq = [];   // newest first: { p, sold }
+  if (!skipLive && lv.pid && (lv.phase === 'ready' || lv.phase === 'bidding') && !S.lots.some(l => l.lotId === lv.lotId)) seq.push({ p: P(lv.pid), sold: false });
+  for (let i = S.lots.length - 1; i >= 0; i--) {
+    const l = S.lots[i];
+    if (l.result === 'sold' || l.result === 'unsold') seq.push({ p: P(l.pid), sold: l.result === 'sold' });
+    if (seq.length && !isBat(seq[seq.length - 1].p)) break;
+  }
+  let n = 0;
+  for (let i = 0; i < seq.length && isBat(seq[i].p); i++) if (!(seq[i + 1] && seq[i + 1].p === seq[i].p && seq[i + 1].sold)) n++;   // a re-auction counts once
+  return { n, last: seq[0] && isBat(seq[0].p) ? seq[0].p.id : null, sold: !!(seq[0] && seq[0].sold) };
+}
+const batRedo = (run, p) => p.id === run.last && run.sold;
+const batAfter = (run, p) => (isBat(p) ? { n: run.n + (batRedo(run, p) ? 0 : 1), last: p.id, sold: false } : { n: 0, last: null, sold: false });
+/* Can this player come up next without one batter too many in a row? */
+function batOK(p, run) { const k = batLimit(); if (!k || !isBat(p)) return true; run = run || batRunNow(); return batRedo(run, p) || run.n < k; }
+const canBuyNow = tis => p => !S.started || !tis.length || tis.some(ti => couldBuy(ti, p));
+/* Is a non-batter that some team can buy waiting in the queue? (if not, a batter has to come next) */
+function nonBatWaiting(except) {
+  const ok = canBuyNow(S.teams.map(computeTeam));
+  return S.queue.some(id => { const x = P(id); return x && x.id !== except && queueable(x) && !isBat(x) && ok(x); });
+}
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+const batWaitMsg = () => `The last ${batLimit()} players were batters, so the next one must be a bowler, all-rounder or wicketkeeper.`;
+/* Put the queue in an order that keeps the rule, moving as few players as possible (the queue is already shuffled):
+   - after the limit of batters in a row, the nearest non-batter moves up;
+   - when the batters left could no longer be spaced out by the non-batters left (mystery players waiting included),
+     the nearest batter moves up.
+   Players no team can buy any more don't count: they are passed over instead of coming up. */
+function spaceQueue() {
+  const k = batLimit();
+  if (!k || !S.queue.length) return;
+  const R = S.rules, tis = S.teams.map(computeTeam), ok = canBuyNow(tis), counts = p => queueable(p) && ok(p);
+  const slots = [], L = [];
+  S.queue.forEach((id, i) => { if (queueable(P(id))) { slots.push(i); L.push(id); } });
+  const pool = S.rules.surprise.on && surpriseLeft('mystery') ? surprisePool('mystery').filter(ok) : [];
+  let bats = L.filter(id => { const p = P(id); return isBat(p) && counts(p); }).length + pool.filter(isBat).length;
+  let others = L.filter(id => { const p = P(id); return !isBat(p) && counts(p); }).length + pool.filter(p => !isBat(p)).length;
+  let run = batRunNow();
+  // Keep the batters' places filling in step, so the last places left open aren't all batters' places (then nothing but
+  // batters could come up). pace = places still open in a role (after the waiting mystery players of that role) per
+  // queued player of that role; when the batters' pace is above the slowest other role's, the next player is a batter.
+  const open = r => sum(tis.map(ti => { const mx = R.roleMax[r]; return Math.max(0, Math.min(R.maxSquad - ti.count, (mx == null || mx === '' ? R.maxSquad : mx) - (ti.roles[r] || 0))); }));
+  const pace = r => { const o = Math.max(0, open(r) - pool.filter(x => x.role === r).length); return o ? o / Math.max(1, L.filter(id => { const x = P(id); return x.role === r && counts(x); }).length) : 0; };
+  const behind = S.started && pace('BAT') > Math.max(...ROLES.filter(r => r !== 'BAT').map(pace));
+  let first = true;
+  const pull = (i, want) => { for (let j = i + 1; j < L.length; j++) { const x = P(L[j]); if (counts(x) && want(x)) { L.splice(i, 0, L.splice(j, 1)[0]); return; } } };
+  for (let i = 0; i < L.length; i++) {
+    let p = P(L[i]);
+    if (!counts(p)) continue;
+    if (!batOK(p, run)) pull(i, x => !isBat(x));                                          // one batter too many: a non-batter first
+    else if (!isBat(p) && run.n < k && p.id !== S.qPin && (bats > k * others || (first && behind))) pull(i, isBat);   // too many batters left to space out later (a player put first by hand stays)
+    first = false;
+    p = P(L[i]);
+    if (isBat(p)) bats--; else others--;
+    run = batAfter(run, p);
+  }
+  slots.forEach((qi, n) => { S.queue[qi] = L[n]; });
+}
 function advance(afterResult) {
   if (S.started) skipDead();
   S.queue = S.queue.filter(id => queueable(S.players.find(p => p.id === id)));
   if (!S.started) { S.live = emptyLive(); return; }
+  spaceQueue();
   if (afterResult && surpriseDue()) {
     let pick = surpriseNext();
     if (pick && !pick.manual && pick.kind === 'wild' && !wildTimingOK()) pick = null;
     if (pick && !pick.manual && bySets() && !setSurprises().some(x => x.p.id === pick.p.id)) pick = null;   // its set hasn't started yet
-    if (!pick) pick = pickSurprise();
+    if (!pick) pick = pickSurprise(batRunNow());
+    if (pick && !batOK(pick.p)) pick = null;   // it would be one batter too many in a row: it pops in after the next player
     if (pick) return loadSurprise(pick.p, pick.kind);
   }
   if (!S.queue.some(id => queueable(P(id))) && S.rules.surprise.on && (surpriseLeft('mystery') || surpriseLeft('wild'))) {
-    const pick = surpriseNext() || pickSurprise();   // the queue ran out first: the surprise players still left come up now
+    let pick = surpriseNext();   // the queue ran out first: the surprise players still left come up now (a non-batter first after the batters limit)
+    if (!pick || !batOK(pick.p)) pick = pickSurprise(batRunNow()) || pick || pickSurprise();
     if (pick) return loadSurprise(pick.p, pick.kind);
+  }
+  const head = S.queue.map(id => P(id)).find(queueable), run = batRunNow();
+  if (head && !batOK(head, run) && S.rules.surprise.on && surpriseLeft('mystery')) {   // only batters left in the queue: a waiting mystery bowler, all-rounder or keeper comes first
+    const pick = pickSurprise(run);
+    if (pick) return loadSurprise(pick.p, pick.kind);
+  }
+  if (afterResult && !bySets() && S.rules.surprise.on && surpriseLeft('mystery') && S.surprise.since >= 1) {   // a mystery player whose role is nearly full in every squad pops in now, before nobody can buy them
+    const R = S.rules, tis = S.teams.map(computeTeam), wait = surprisePool('mystery').filter(p => tis.some(ti => couldBuy(ti, p)));
+    const open = r => sum(tis.map(ti => { const mx = R.roleMax[r]; return Math.max(0, Math.min(R.maxSquad - ti.count, (mx == null || mx === '' ? R.maxSquad : mx) - (ti.roles[r] || 0))); }));
+    const risk = p => open(p.role) - wait.filter(x => x.role === p.role).length;
+    const due = wait.filter(p => risk(p) <= 1 && batOK(p, run)).sort((a, b) => risk(a) - risk(b));
+    if (due.length) { const n = S.surprise.next, pre = n && due.find(p => p.id === n.pid); return loadSurprise(pre || due[0], 'mystery'); }
   }
   if (S.rules.order === 'manual') { S.live = emptyLive(); return; }   // the auctioneer picks (K) or asks for a random one (N)
   const next = S.queue[0];
@@ -3094,24 +3185,32 @@ function autoTick() {
 }
 
 /* ---------- Queue ---------- */
+/* The queue keeps the batters-in-a-row rule (spaceQueue), so a player can't always go where they are put. */
+const batWhy = p => `🏏 ${ctlName(p)} can't go there: that would make ${batLimit() + 1} batters in a row.`;
 function qMove(pid, d) {
+  const i = S.queue.indexOf(pid), j = i + d;
   commit(() => {
-    const q = S.queue, i = q.indexOf(pid), j = i + d;
+    const q = S.queue;
     if (i < 0 || j < 0 || j >= q.length) return;
     [q[i], q[j]] = [q[j], q[i]];
+    if (q.find(id => queueable(P(id))) === pid) S.qPin = pid;
   });
+  if (i >= 0 && j >= 0 && j < S.queue.length && S.queue.indexOf(pid) !== j && P(pid)) toast(batWhy(P(pid)), 'info', 5000);
 }
 function qRemove(pid) { commit(() => { S.queue = S.queue.filter(x => x !== pid); }); toast('Removed from the queue. The player is still available.', 'info'); }
 function qToEnd(pid) { commit(() => { S.queue = S.queue.filter(x => x !== pid).concat(pid); }); }
 function qDrop(pid, target, before) {
   if (pid === target) return;
+  let j;
   commit(() => {
     const q = S.queue.filter(x => x !== pid);
-    let j = q.indexOf(target);
+    j = q.indexOf(target);
     if (j < 0) j = q.length; else if (!before) j++;
     q.splice(j, 0, pid);
     S.queue = q;
+    if (q.find(id => queueable(P(id))) === pid) S.qPin = pid;
   });
+  if (j != null && S.queue.indexOf(pid) !== j && P(pid)) toast(batWhy(P(pid)), 'info', 5000);
 }
 function qAdd(pid, where) {
   const p = P(pid);
@@ -3123,16 +3222,17 @@ function qAdd(pid, where) {
   commit(() => {
     if (p.status === 'unsold') { p.status = 'available'; p.pool = false; log({ type: 'unsold_round', pid, note: `${p.name} back in the auction` }); }
     S.queue = S.queue.filter(x => x !== pid);
-    if (where === 'next') S.queue.unshift(pid); else S.queue.push(pid);
+    if (where === 'next') { S.queue.unshift(pid); S.qPin = pid; } else S.queue.push(pid);
     if (S.live.phase === 'empty') advance();
   });
-  toast(`${ctlName(p)} ${where === 'next' ? 'is up next' : 'added to the end of the queue'}.`, 'good');
+  if (where === 'next' && S.live.pid !== pid && (pickable()[0] || {}).id !== pid) return toast(`🏏 ${ctlName(p)} comes up after the next player: no more than ${batLimit()} batters in a row.`, 'info', 5000);
+  toast(`${ctlName(p)} ${where === 'next' ? (S.live.pid === pid ? 'is on the block' : 'is up next') : 'added to the end of the queue'}.`, 'good');
 }
 /* Put a player taken off the block back in the queue: 'spread' drops them at a random place in their own set
    (or anywhere in random order) so a changed player doesn't come straight back; otherwise they go first. */
 function requeue(id, how) {
   const p = P(id), q = S.queue;
-  if (how !== 'spread' || S.rules.order === 'queue' || !q.length) { q.unshift(id); return; }
+  if (how !== 'spread' || S.rules.order === 'queue' || !q.length) { q.unshift(id); S.qPin = id; return; }
   let lo = 0, hi = q.filter(x => !(P(x) || {}).round2).length;
   if (S.rules.order === 'sets' && p) {
     const idx = q.map((x, i) => ((P(x) || {}).setId === p.setId ? i : -1)).filter(i => i >= 0);
@@ -3149,6 +3249,7 @@ function auctionNow(pid, o = {}) {
   if (lv.pid === pid && lv.phase !== 'done') { nav('control'); return; }
   if (lv.phase === 'bidding' && lv.bids.length) return toast('Finish bidding on the current player first (S or U).', 'warn');
   if (inSurprisePool(p)) return toast('Mystery and wild card players enter the auction by surprise.', 'info');
+  if (!batOK(p, batRunNow(true)) && nonBatWaiting(p.id)) return toast(`🏏 ${p.name} would be the ${ordinal(batLimit() + 1)} batter in a row. ${batWaitMsg()}`, 'warn', 6000);
   commit(() => {
     const cur = lotPlayer();
     if (cur && cur.status === 'available' && lv.phase !== 'done') {
@@ -3216,7 +3317,7 @@ function prevPlayer() {
   if (lv.phase === 'bidding' && lv.bids.length) return toast('Finish bidding on the current player first.', 'warn');
   commit(() => {
     const cur = lotPlayer();
-    if (cur && cur.status === 'available' && lv.phase !== 'done') S.queue.unshift(cur.id);
+    if (cur && cur.status === 'available' && lv.phase !== 'done') { S.queue.unshift(cur.id); S.qPin = cur.id; }
     if (p.status === 'unsold') log({ type: 'unsold_round', pid: p.id, note: `${p.name} brought back` });
     loadLot(p.id, 'back');
   });
@@ -3285,11 +3386,12 @@ function corrReauction(pid, reason) {
   const was = p.status === 'sold' ? `${T(p.soldTo).short} ${money(p.soldPrice)}` : p.status;
   commit(() => {
     refund(p); p.status = 'available'; p.pool = false;
-    S.queue = [pid].concat(S.queue.filter(x => x !== pid));
+    S.queue = [pid].concat(S.queue.filter(x => x !== pid)); S.qPin = pid;
     log({ type: 'correction', pid, note: `${p.name}: re-auction (was ${was})${why(reason)}` });
     if (S.live.phase === 'empty' || S.live.phase === 'done') advance();
   }, { ck: `Correction: re-auction ${p.name}` });
-  toast(`${p.name} is up next for re-auction.`, 'good');
+  if (S.live.pid !== pid && (pickable()[0] || {}).id !== pid) return toast(`🏏 ${p.name} comes up for re-auction after the next player: no more than ${batLimit()} batters in a row.`, 'info', 6000);
+  toast(`${p.name} is ${S.live.pid === pid ? 'on the block' : 'up next'} for re-auction.`, 'good');
 }
 function corrToPool(pid, reason) {
   const p = P(pid); if (!p) return;
@@ -4137,6 +4239,7 @@ function pickSurprisePlayer(pid, kind) {
   if (!p || p.status !== 'available') return toast('That player is not available.', 'warn');
   if (surpriseSlots(kind) <= 0) return toast(`No ${kind === 'wild' ? 'wild card' : 'mystery'} slots left. Raise the limit in Setup → Surprises.`, 'warn');
   const swap = surpriseMode() === 'swap';
+  if (swap && !batOK(p, batRunNow(true)) && nonBatWaiting()) return toast(`🏏 ${p.name} would be the ${ordinal(batLimit() + 1)} batter in a row. ${batWaitMsg()}`, 'warn', 6000);
   commit(() => {
     makeSurprise(p, kind);
     if (swap) swapSurprise(p, kind);
@@ -4165,9 +4268,13 @@ function popSurpriseNow() {
   const pick = surpriseNext();
   if (!pick) return toast('No mystery or wild card players left in the pool.', 'warn');
   closeModal();
+  if (!batOK(pick.p, batRunNow(true)) && nonBatWaiting()) {   // one batter too many in a row: it pops in after the next player instead
+    commit(() => { S.surprise.since = Math.max(S.surprise.since, surpriseGapNow()); });
+    return toast(`🏏 ${pick.p.name} is a batter and the last ${batLimit()} players were batters, so the surprise pops in after the ${lv.pid && (lv.phase === 'ready' || lv.phase === 'bidding') ? 'player on the block' : 'next player'}.`, 'info', 6000);
+  }
   commit(() => {
     const cur = lotPlayer();
-    if (cur && cur.status === 'available' && lv.phase !== 'done') S.queue.unshift(cur.id);
+    if (cur && cur.status === 'available' && lv.phase !== 'done') { S.queue.unshift(cur.id); S.qPin = cur.id; }
     log({ type: 'correction', pid: pick.p.id, note: 'Surprise popped in by the auctioneer' });
     loadSurprise(pick.p, pick.kind);
   });
@@ -4693,7 +4800,7 @@ function bindChange(el) {
     if (path === 'rules.order') rebuildQueue();
   });
   if (path === 'rules.order') toast(v === 'queue' ? 'Queue rebuilt in set order.' : 'Queue reshuffled.', 'good');
-  if (path.startsWith('rules.plan') || path.startsWith('rules.currency') || path.startsWith('rules.surprise') || path === 'rules.mystery.auto' || path === 'rules.wild.when' || path === 'rules.wild.specialBase' || path === 'rules.mystery.hide') PAGES.setup.build();
+  if (path === 'rules.maxBatRun' || path.startsWith('rules.plan') || path.startsWith('rules.currency') || path.startsWith('rules.surprise') || path === 'rules.mystery.auto' || path === 'rules.wild.when' || path === 'rules.wild.specialBase' || path === 'rules.mystery.hide') PAGES.setup.build();
 }
 
 const SETUP_TABS = [['event', 'Event & teams'], ['rules', 'Auction rules'], ['players', 'Players'], ['sets', 'Sets & order'], ['special', 'Surprises'], ['data', 'Backup & reset']];
@@ -4787,6 +4894,8 @@ const SETUP = {
   sets() {
     return `<section class="card"><h2>Player order <small>How the next player is picked.</small></h2>
         <div class="form-grid">${fld('Players come up', 'rules.order', 'select', { opts: [['random', 'At random from the whole pool'], ['sets', 'Set by set, random inside each set'], ['queue', 'Set by set, in player-number order'], ['manual', 'The auctioneer picks each player (🔍 pick or 🎲 random)']] })}</div>
+        <div class="form-grid" style="margin-top:10px">${fld('Most batters in a row (0 = no limit)', 'rules.maxBatRun', 'int', { min: 0 })}</div>
+        <p style="margin-top:6px">${S.rules.maxBatRun > 0 ? `🏏 No more than <b>${S.rules.maxBatRun} batter${S.rules.maxBatRun === 1 ? '' : 's'}</b> come up one after another${batLimit() ? '' : ' (only when players come up at random or the auctioneer picks)'}: then a bowler, all-rounder or wicketkeeper comes first. The queue keeps this order, a mystery batter waits one player, and 🔍 Pick won't put a batter on the block then. Only when no team can buy anyone but a batter any more do batters come one after another.` : 'Batters can come up any number of times in a row.'}</p>
         <div class="row" style="margin-top:10px">${fld('Keep each new player hidden on the projector until I press Enter (the last sale stays on screen meanwhile)', 'rules.curtain', 'bool')}</div>
         <p style="margin-top:8px">Changing this reshuffles the queue. In every mode you can also pick the next player yourself (🔍 Pick, or press <kbd>K</kbd>) or bring a random one. With <b>The auctioneer picks each player</b>, the block waits for your pick after every result. Mystery players always pop in by surprise.</p></section>
       <section class="card"><h2>Auction sets <small>Used by “Set by set” order and for set announcements.</small></h2>
@@ -5023,11 +5132,14 @@ function randomPlayer() {
   if (!S.started) return startAuction();
   const lv = S.live;
   if (lv.phase === 'bidding' && lv.bids.length) return toast('Bids are open. Press S (sold) or U (unsold) first.', 'warn');
+  spaceQueue();
   const q = pickable(), main = q.filter(p => !p.round2), from = main.length ? main : q;
   if (!from.length) return toast('No players left in the queue. Add players, or start the unsold round from the Unsold pool tab.', 'warn');
   const change = MODAL && MODAL.id === 'pick-next' && UI.pickChange;
   if (MODAL && MODAL.id === 'pick-next') closeModal();
-  auctionNow(from[Math.floor(Math.random() * from.length)].id, change ? { back: 'spread' } : {});
+  // the queue is shuffled and keeps the batters rule, so its first player is the random pick (the player on the block, if any, goes back)
+  const run = batRunNow(true), pick = from.find(p => batOK(p, run)) || q.find(p => batOK(p, run)) || from[0];
+  auctionNow(pick.id, change ? { back: 'spread' } : {});
 }
 function openNextPicker(change) {
   if (!S.started) return toast('Start the auction first.', 'info');
@@ -5059,9 +5171,11 @@ function drawNextPicker() {
   if (note) note.innerHTML = cur && lv.phase !== 'done' && lv.phase !== 'empty'
     ? `On the block now: <b>${esc(ctlName(cur))}</b>${lv.bids.length ? '. Bids are open, so sell or mark unsold first.' : UI.pickChange ? '. Pick the player to bring in instead; ' + esc(cur.name) + ' goes back into the queue at a random place' + (S.rules.order === 'sets' ? ' in the same set.' : '.') : '. Picking another player puts them back in the queue.'}`
     : `${plural(all.length, 'player')} waiting. Pick one to bring onto the block${S.rules.curtain === false ? '' : ' (they stay hidden on the projector until you press Enter)'}.`;
+  const run = batRunNow(true), batWait = !all.every(p => batOK(p, run)) && nonBatWaiting();   // the last players were batters: the next can't be one
+  if (note && batWait) note.innerHTML += ` <b class="bat-wait">🏏 ${esc(batWaitMsg())}</b>`;
   const LIM = 200, setName = p => (S.sets.find(x => x.id === p.setId) || {}).name || '';
   patch(el, list.length
-    ? `<table class="tbl"><thead><tr><th>ID</th><th>Player</th><th>Role</th><th class="r">Rating</th><th class="r">Base</th><th>Set</th><th></th></tr></thead><tbody>${list.slice(0, LIM).map(p => `<tr><td class="pid">#${esc(pnum(p))}</td><td class="pname">${esc(p.name)}${p.overseas ? ' 🌎' : ''}${p.round2 ? ' <small class="muted">♻ unsold round</small>' : ''}</td><td>${roleText(p)}</td><td class="r">${esc(p.rating)}</td><td class="r money">${money(lotBase(p))}</td><td class="muted">${esc(setName(p))}</td><td class="r"><button class="mini on" data-act="pick-now" data-pid="${esc(p.id)}">▶ On the block</button></td></tr>`).join('')}</tbody></table>${list.length > LIM ? `<p class="muted" style="margin:8px">Showing ${LIM} of ${list.length}. Search to find the rest.</p>` : ''}`
+    ? `<table class="tbl"><thead><tr><th>ID</th><th>Player</th><th>Role</th><th class="r">Rating</th><th class="r">Base</th><th>Set</th><th></th></tr></thead><tbody>${list.slice(0, LIM).map(p => `<tr><td class="pid">#${esc(pnum(p))}</td><td class="pname">${esc(p.name)}${p.overseas ? ' 🌎' : ''}${p.round2 ? ' <small class="muted">♻ unsold round</small>' : ''}</td><td>${roleText(p)}</td><td class="r">${esc(p.rating)}</td><td class="r money">${money(lotBase(p))}</td><td class="muted">${esc(setName(p))}</td><td class="r">${batWait && !batOK(p, run) ? `<button class="mini" disabled title="${esc(batWaitMsg())}">🏏 Not now</button>` : `<button class="mini on" data-act="pick-now" data-pid="${esc(p.id)}">▶ On the block</button>`}</td></tr>`).join('')}</tbody></table>${list.length > LIM ? `<p class="muted" style="margin:8px">Showing ${LIM} of ${list.length}. Search to find the rest.</p>` : ''}`
     : `<p class="empty-note">${q || role ? 'No waiting player matches.' : 'No players left in the queue.'}</p>`);
 }
 
@@ -6265,6 +6379,7 @@ async function boot() {
       S = buildFixed(); S.event = ev; S.teams.forEach((t, i) => Object.assign(t, keep[i] || {}));
     }
   }
+  if (MODE === 'control') spaceQueue();   // a queue saved before the batters-in-a-row rule
   CK = (await idbGet('ck')) || [];
   if (MODE === 'control') setTimeout(cacheLibs, 6000);
   for (const [k, v] of await idbEntries('m:')) MEDIA.set(k.slice(2), v);
